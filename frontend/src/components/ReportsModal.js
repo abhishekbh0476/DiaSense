@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApiClient } from '../hooks/useApiClient';
 
 export default function ReportsModal({ onClose }) {
@@ -10,11 +10,7 @@ export default function ReportsModal({ onClose }) {
   const [selectedReport, setSelectedReport] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    loadReports();
-  }, []);
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await apiClient.getReports();
@@ -67,7 +63,11 @@ export default function ReportsModal({ onClose }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [apiClient]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
   const generateNewReport = async (type, period) => {
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function EmergencyMode() {
@@ -27,6 +27,49 @@ export default function EmergencyMode() {
     }
   }, []);
 
+  const sendEmergencyAlert = useCallback(async () => {
+    const emergencyData = {
+      userId: user?.id,
+      userName: user?.fullName,
+      emergencyType,
+      timestamp: new Date().toISOString(),
+      location: location ? {
+        lat: location.latitude,
+        lng: location.longitude,
+        address: 'Getting address...'
+      } : null,
+      currentGlucose: 65,
+      lastReading: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      medications: user?.medications || [],
+      emergencyContacts: [
+        { name: 'Sarah Johnson', phone: '+1 (555) 123-4567', relationship: 'Spouse' },
+        { name: 'Dr. Emily Chen', phone: '+1 (555) 234-5678', relationship: 'Doctor' }
+      ]
+    };
+
+    try {
+      const response = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emergencyData)
+      });
+      if (response.ok) {
+        console.log('Emergency alert sent successfully');
+        alert(`Emergency alert sent successfully!\n\nContacts notified:\n- ${emergencyData.emergencyContacts.map(c => c.name).join('\n- ')}\n\nLocation: ${location ? 'Shared' : 'Not available'}\nCurrent glucose: ${emergencyData.currentGlucose} mg/dL`);
+        setIsEmergencyActive(false);
+      }
+    } catch (error) {
+      console.error('Error sending emergency alert:', error);
+      alert('Failed to send emergency alert. Please call 911 directly.');
+    } finally {
+      setIsEmergencyActive(false);
+      setCountdown(0);
+      setEmergencyType(null);
+    }
+  }, [user, location, emergencyType]);
+
   useEffect(() => {
     let interval;
     if (countdown > 0) {
@@ -37,58 +80,18 @@ export default function EmergencyMode() {
       sendEmergencyAlert();
     }
     return () => clearInterval(interval);
-  }, [countdown, isEmergencyActive]);
+  }, [countdown, isEmergencyActive, sendEmergencyAlert]);
 
   const startEmergency = (type) => {
     setEmergencyType(type);
     setIsEmergencyActive(true);
-    setCountdown(10); // 10 second countdown
+    setCountdown(10);
   };
 
   const cancelEmergency = () => {
     setIsEmergencyActive(false);
     setCountdown(0);
     setEmergencyType(null);
-  };
-
-  const sendEmergencyAlert = async () => {
-    const emergencyData = {
-      userId: user?.id,
-      userName: user?.fullName,
-      emergencyType,
-      timestamp: new Date().toISOString(),
-      location: location ? {
-        lat: location.latitude,
-        lng: location.longitude,
-        address: 'Getting address...' // In real app, reverse geocode
-      } : null,
-      currentGlucose: 65, // Mock current glucose reading
-      lastReading: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      medications: user?.medications || [],
-      emergencyContacts: [
-        { name: 'Sarah Johnson', phone: '+1 (555) 123-4567', relationship: 'Spouse' },
-        { name: 'Dr. Emily Chen', phone: '+1 (555) 234-5678', relationship: 'Doctor' }
-      ]
-    };
-
-    try {
-      // In real app, this would send to emergency services and contacts
-      console.log('🚨 EMERGENCY ALERT SENT:', emergencyData);
-      
-      // Simulate sending alerts
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Show success message
-      alert(`Emergency alert sent successfully!\n\nContacts notified:\n- ${emergencyData.emergencyContacts.map(c => c.name).join('\n- ')}\n\nLocation: ${location ? 'Shared' : 'Not available'}\nCurrent glucose: ${emergencyData.currentGlucose} mg/dL`);
-      
-    } catch (error) {
-      console.error('Failed to send emergency alert:', error);
-      alert('Failed to send emergency alert. Please call 911 directly.');
-    } finally {
-      setIsEmergencyActive(false);
-      setCountdown(0);
-      setEmergencyType(null);
-    }
   };
 
   if (!isEmergencyActive) {

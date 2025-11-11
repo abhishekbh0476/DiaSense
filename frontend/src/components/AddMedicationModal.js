@@ -5,6 +5,7 @@ import { useState } from 'react';
 export default function AddMedicationModal({ onSubmit, onClose }) {
   const [formData, setFormData] = useState({
     name: '',
+    type: 'other',
     dosage: {
       amount: '',
       unit: 'mg'
@@ -23,7 +24,17 @@ export default function AddMedicationModal({ onSubmit, onClose }) {
 
   const [errors, setErrors] = useState({});
 
-  const dosageUnits = ['mg', 'g', 'ml', 'units', 'tablets', 'capsules', 'drops'];
+  const medicationTypes = [
+    { value: 'insulin', label: 'Insulin' },
+    { value: 'metformin', label: 'Metformin' },
+    { value: 'sulfonylurea', label: 'Sulfonylurea' },
+    { value: 'dpp4_inhibitor', label: 'DPP4 Inhibitor' },
+    { value: 'sglt2_inhibitor', label: 'SGLT2 Inhibitor' },
+    { value: 'glp1_agonist', label: 'GLP-1 Agonist' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const dosageUnits = ['mg', 'units', 'ml', 'tablets'];
   const commonMedications = [
     'Metformin', 'Insulin', 'Glipizide', 'Januvia', 'Lantus', 'Humalog',
     'Glucophage', 'Amaryl', 'Actos', 'Victoza', 'Jardiance', 'Invokana'
@@ -35,6 +46,7 @@ export default function AddMedicationModal({ onSubmit, onClose }) {
     // Validation
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = 'Medication name is required';
+    if (!formData.type) newErrors.type = 'Medication type is required';
     if (!formData.dosage.amount) newErrors.dosage = 'Dosage amount is required';
     if (formData.frequency.timesPerDay < 1) newErrors.frequency = 'Frequency must be at least 1 time per day';
     
@@ -46,7 +58,6 @@ export default function AddMedicationModal({ onSubmit, onClose }) {
     // Prepare data for submission
     const medicationData = {
       ...formData,
-      type: 'medication', // Add required type field
       dosage: {
         amount: parseFloat(formData.dosage.amount),
         unit: formData.dosage.unit
@@ -147,6 +158,23 @@ export default function AddMedicationModal({ onSubmit, onClose }) {
                 ))}
               </datalist>
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            </div>
+
+            {/* Medication Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Medication Type *
+              </label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              >
+                {medicationTypes.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+              {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
             </div>
 
             {/* Dosage */}

@@ -5,11 +5,16 @@ import { useState } from 'react';
 export default function AddGlucoseModal({ onSubmit, onClose }) {
   const [formData, setFormData] = useState({
     value: '',
+    unit: 'mg/dL',
     mealContext: 'random',
     timestamp: new Date().toISOString().slice(0, 16), // Format for datetime-local input
     notes: '',
     symptoms: [],
-    location: 'finger'
+    location: 'finger',
+    medicationTaken: false,
+    exerciseRecent: false,
+    stressLevel: 5,
+    sleepQuality: 5
   });
 
   const [errors, setErrors] = useState({});
@@ -23,9 +28,31 @@ export default function AddGlucoseModal({ onSubmit, onClose }) {
   ];
 
   const symptomOptions = [
-    'Feeling Low', 'Feeling High', 'Dizzy', 'Shaky', 'Sweating', 
-    'Hungry', 'Tired', 'Thirsty', 'Blurred Vision', 'Headache'
+    { display: 'None', value: 'none' },
+    { display: 'Dizzy', value: 'dizzy' },
+    { display: 'Shaky', value: 'shaky' },
+    { display: 'Sweating', value: 'sweaty' },
+    { display: 'Hungry', value: 'hungry' },
+    { display: 'Confused', value: 'confused' },
+    { display: 'Irritable', value: 'irritable' },
+    { display: 'Tired', value: 'tired' },
+    { display: 'Thirsty', value: 'thirsty' },
+    { display: 'Frequent Urination', value: 'frequent_urination' }
   ];
+
+  // Mapping for symptom conversion
+  const symptomMap = {
+    'None': 'none',
+    'Dizzy': 'dizzy',
+    'Shaky': 'shaky',
+    'Sweating': 'sweaty',
+    'Hungry': 'hungry',
+    'Confused': 'confused',
+    'Irritable': 'irritable',
+    'Tired': 'tired',
+    'Thirsty': 'thirsty',
+    'Frequent Urination': 'frequent_urination'
+  };
 
   const locationOptions = [
     { value: 'finger', label: 'Finger' },
@@ -57,7 +84,7 @@ export default function AddGlucoseModal({ onSubmit, onClose }) {
       ...formData,
       value: glucoseValue,
       timestamp: new Date(formData.timestamp),
-      symptoms: formData.symptoms.join(', ') // Convert array to string
+      symptoms: formData.symptoms.map(symptom => symptomMap[symptom] || symptom)
     };
 
     onSubmit(glucoseData);
@@ -191,16 +218,16 @@ export default function AddGlucoseModal({ onSubmit, onClose }) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {symptomOptions.map(symptom => (
                   <button
-                    key={symptom}
+                    key={symptom.value}
                     type="button"
-                    onClick={() => toggleSymptom(symptom)}
+                    onClick={() => toggleSymptom(symptom.display)}
                     className={`p-2 rounded-lg text-sm transition-all duration-200 ${
-                      formData.symptoms.includes(symptom)
+                      formData.symptoms.includes(symptom.display)
                         ? 'bg-red-100 text-red-700 border-2 border-red-300'
                         : 'bg-gray-100 text-gray-600 border-2 border-transparent hover:bg-gray-200'
                     }`}
                   >
-                    {symptom}
+                    {symptom.display}
                   </button>
                 ))}
               </div>
@@ -223,6 +250,97 @@ export default function AddGlucoseModal({ onSubmit, onClose }) {
                 rows="3"
                 placeholder="Any additional notes about this reading, what you ate, activities, etc."
               />
+            </div>
+
+            {/* Unit Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Measurement Unit
+              </label>
+              <div className="flex gap-4">
+                {['mg/dL', 'mmol/L'].map(unit => (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, unit }))}
+                    className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all duration-200 font-medium ${
+                      formData.unit === unit
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {unit}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Medication Taken */}
+            <div>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.medicationTaken}
+                  onChange={(e) => setFormData(prev => ({ ...prev, medicationTaken: e.target.checked }))}
+                  className="w-5 h-5 border border-gray-300 rounded accent-blue-600"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  I took my medication today
+                </span>
+              </label>
+            </div>
+
+            {/* Exercise Recent */}
+            <div>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.exerciseRecent}
+                  onChange={(e) => setFormData(prev => ({ ...prev, exerciseRecent: e.target.checked }))}
+                  className="w-5 h-5 border border-gray-300 rounded accent-blue-600"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  I exercised in the last 2 hours
+                </span>
+              </label>
+            </div>
+
+            {/* Stress Level */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Stress Level: <span className="text-blue-600 font-bold">{formData.stressLevel}/10</span>
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={formData.stressLevel}
+                onChange={(e) => setFormData(prev => ({ ...prev, stressLevel: parseInt(e.target.value) }))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Very Low</span>
+                <span>Very High</span>
+              </div>
+            </div>
+
+            {/* Sleep Quality */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Sleep Quality Last Night: <span className="text-blue-600 font-bold">{formData.sleepQuality}/10</span>
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={formData.sleepQuality}
+                onChange={(e) => setFormData(prev => ({ ...prev, sleepQuality: parseInt(e.target.value) }))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Very Poor</span>
+                <span>Excellent</span>
+              </div>
             </div>
 
             {/* Quick Tips */}

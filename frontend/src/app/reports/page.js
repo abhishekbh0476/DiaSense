@@ -352,7 +352,7 @@ export default function Reports() {
 
         {/* Report Templates Info */}
         <div className="mt-12 bg-gradient-to-r from-blue-50 to-emerald-50 rounded-2xl p-8 border border-blue-200 animate-slide-up animation-delay-500">
-          <h3 className="text-xl font-semibold text-slate-900 mb-4 text-center">What's Included in Your Reports</h3>
+          <h3 className="text-xl font-semibold text-slate-900 mb-4 text-center">What&apos;s Included in Your Reports</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="text-center">

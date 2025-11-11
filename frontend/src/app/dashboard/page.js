@@ -14,6 +14,8 @@ const AddGlucoseModal = dynamic(() => import('../../components/AddGlucoseModal')
 const AddMedicationModal = dynamic(() => import('../../components/AddMedicationModal'), { ssr: false });
 const ReportsModal = dynamic(() => import('../../components/ReportsModal'), { ssr: false });
 const SettingsModal = dynamic(() => import('../../components/SettingsModal'), { ssr: false });
+const MedicationDetailsModal = dynamic(() => import('../../components/MedicationDetailsModal'), { ssr: false });
+const MedicationsListModal = dynamic(() => import('../../components/MedicationsListModal'), { ssr: false });
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -30,6 +32,9 @@ export default function Dashboard() {
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [selectedMedication, setSelectedMedication] = useState(null);
+  const [showMedicationDetails, setShowMedicationDetails] = useState(false);
+  const [showMedicationsList, setShowMedicationsList] = useState(false);
 
   useEffect(() => {
     // Update time every minute
@@ -217,21 +222,25 @@ export default function Dashboard() {
             </div>
           </button>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up animation-delay-300 group">
+          <button 
+            onClick={() => setShowMedicationsList(true)}
+            className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up animation-delay-300 group text-left w-full"
+          >
             <div className="flex items-center">
               <div className="p-3 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-xl group-hover:from-emerald-200 group-hover:to-emerald-300 transition-all duration-300">
                 <svg className="w-6 h-6 text-emerald-600 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div className="ml-4">
+              <div className="ml-4 flex-1">
                 <p className="text-sm font-medium text-slate-600">Active Medications</p>
                 <p className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors duration-300">
                   {medications.filter(med => med.isActive !== false).length || 0}
                 </p>
+                <p className="text-xs text-slate-500">Click to view all</p>
               </div>
             </div>
-          </div>
+          </button>
 
           <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up animation-delay-400 group">
             <div className="flex items-center">
@@ -399,6 +408,34 @@ export default function Dashboard() {
           <SettingsModal 
             user={user}
             onClose={() => setShowSettings(false)}
+          />
+        )}
+
+        {/* Medications List Modal */}
+        {showMedicationsList && MedicationsListModal && (
+          <MedicationsListModal 
+            medications={medications}
+            onClose={() => setShowMedicationsList(false)}
+            onSelectMedication={(medication) => {
+              setSelectedMedication(medication);
+              setShowMedicationsList(false);
+              setShowMedicationDetails(true);
+            }}
+          />
+        )}
+
+        {/* Medication Details Modal */}
+        {showMedicationDetails && selectedMedication && MedicationDetailsModal && (
+          <MedicationDetailsModal 
+            medication={selectedMedication}
+            onClose={() => {
+              setShowMedicationDetails(false);
+              setSelectedMedication(null);
+            }}
+            onEdit={(med) => {
+              // Handle edit medication - could open edit modal
+              console.log('Edit medication:', med);
+            }}
           />
         )}
        
