@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '../../../../lib/mongodb.js';
+import { connectDB } from '../../../../lib/mongodb.js';
 import User from '../../../../models/User.js';
 import { generateToken, generateRefreshToken } from '../../../../lib/jwt.js';
 import { validateData, registerSchema } from '../../../../lib/validation.js';
@@ -28,7 +28,7 @@ export async function POST(request) {
 
     // Connect to database
     console.log('Connecting to database...');
-    await connectToDatabase();
+    await connectDB();
     console.log('Database connected successfully');
 
     // Check if user already exists

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
+import apiClient from '../../lib/api';
 
 export default function Analytics() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -11,6 +12,9 @@ export default function Analytics() {
   
   const [timeRange, setTimeRange] = useState('7d');
   const [selectedMetric, setSelectedMetric] = useState('glucose');
+  const [glucoseData, setGlucoseData] = useState({ readings: [], stats: {} });
+  const [medications, setMedications] = useState([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -18,7 +22,68 @@ export default function Analytics() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadAnalyticsData();
+    }
+  }, [isAuthenticated, user, timeRange]);
+
+  const loadAnalyticsData = async () => {
+    try {
+      setIsLoadingData(true);
+      
+      // Set the API token
+      const token = localStorage.getItem('token');
+      if (token) {
+        apiClient.setToken(token);
+      }
+
+      // Convert timeRange to days
+      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+
+      // Fetch glucose data
+      const glucoseResponse = await apiClient.getGlucoseReadings({ days, limit: 100 });
+      setGlucoseData(glucoseResponse);
+
+      // Fetch medications
+      const medicationsResponse = await apiClient.getMedications(true);
+      setMedications(medicationsResponse.medications || []);
+
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+      // Fall back to mock data
+      setGlucoseData({
+        readings: generateMockReadings(),
+        stats: {
+          average: 110,
+          timeInRange: 75,
+          lowReadings: 8,
+          highReadings: 12,
+          count: 156
+        }
+      });
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const generateMockReadings = () => {
+    const readings = [];
+    const now = new Date();
+    for (let i = 0; i < 20; i++) {
+      const timestamp = new Date(now.getTime() - i * 6 * 60 * 60 * 1000); // Every 6 hours
+      const value = 80 + Math.random() * 80; // Random between 80-160
+      readings.push({
+        _id: i.toString(),
+        value: Math.round(value),
+        timestamp,
+        status: value < 70 ? 'low' : value > 140 ? 'high' : 'normal'
+      });
+    }
+    return readings;
+  };
+
+  if (isLoading || isLoadingData) {
     return (
       <Layout>
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
@@ -106,7 +171,7 @@ export default function Analytics() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-slate-600">Avg Glucose</p>
                 <p className="text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors duration-300">
-                  {mockStats.avgGlucose} <span className="text-sm font-normal text-slate-500">mg/dL</span>
+                  {Math.round(glucoseData.stats.average || 0)} <span className="text-sm font-normal text-slate-500">mg/dL</span>
                 </p>
               </div>
             </div>
@@ -122,7 +187,7 @@ export default function Analytics() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-slate-600">Time in Range</p>
                 <p className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors duration-300">
-                  {mockStats.timeInRange}<span className="text-sm font-normal text-slate-500">%</span>
+                  {glucoseData.stats.timeInRange || 0}<span className="text-sm font-normal text-slate-500">%</span>
                 </p>
               </div>
             </div>
@@ -138,7 +203,7 @@ export default function Analytics() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-slate-600">High Readings</p>
                 <p className="text-2xl font-bold text-slate-900 group-hover:text-orange-600 transition-colors duration-300">
-                  {mockStats.highReadings}
+                  {glucoseData.stats.highReadings || 0}
                 </p>
               </div>
             </div>
@@ -154,7 +219,7 @@ export default function Analytics() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-slate-600">Low Readings</p>
                 <p className="text-2xl font-bold text-slate-900 group-hover:text-red-600 transition-colors duration-300">
-                  {mockStats.lowReadings}
+                  {glucoseData.stats.lowReadings || 0}
                 </p>
               </div>
             </div>
@@ -191,26 +256,43 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Mock Chart */}
+              {/* Real Data Chart */}
               <div className="h-80 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-6 flex items-end justify-between">
-                {mockGlucoseData.map((point, index) => (
-                  <div key={index} className="flex flex-col items-center group">
+                {glucoseData.readings.slice(0, 12).reverse().map((reading, index) => (
+                  <div key={reading._id || index} className="flex flex-col items-center group">
                     <div
                       className={`w-4 rounded-t-lg transition-all duration-500 group-hover:scale-110 ${
-                        point.status === 'high'
+                        reading.status === 'high'
                           ? 'bg-gradient-to-t from-orange-400 to-orange-600'
-                          : point.status === 'low'
+                          : reading.status === 'low'
                           ? 'bg-gradient-to-t from-red-400 to-red-600'
                           : 'bg-gradient-to-t from-blue-400 to-blue-600'
                       }`}
-                      style={{ height: `${(point.value / 200) * 100}%` }}
+                      style={{ height: `${Math.max((reading.value / 200) * 100, 5)}%` }}
                     />
-                    <div className="mt-2 text-xs text-slate-600 font-medium">{point.time}</div>
+                    <div className="mt-2 text-xs text-slate-600 font-medium">
+                      {new Date(reading.timestamp).toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: false 
+                      })}
+                    </div>
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute -mt-8 bg-slate-900 text-white px-2 py-1 rounded text-xs">
-                      {point.value} mg/dL
+                      {reading.value} mg/dL
                     </div>
                   </div>
                 ))}
+                {glucoseData.readings.length === 0 && (
+                  <div className="flex items-center justify-center w-full h-full text-slate-500">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <p>No glucose readings available</p>
+                      <p className="text-sm">Start logging readings to see your trends</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Chart Legend */}

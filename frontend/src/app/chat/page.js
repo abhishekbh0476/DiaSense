@@ -15,6 +15,7 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [hoveredChatId, setHoveredChatId] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -211,62 +212,75 @@ export default function ChatPage() {
 
   return (
     <Layout showFooter={false}>
-      <div className="flex h-[calc(100vh-4rem)] bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
+      <div className="flex h-[calc(100vh-4rem)] bg-gradient-to-br from-slate-900/5 via-white to-blue-50/20 overflow-hidden">
         {/* Sidebar */}
-        <div className={`${isSidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white flex flex-col overflow-hidden shadow-2xl border-r border-slate-700/50 backdrop-blur-xl`}>
+        <div className={`${isSidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col overflow-hidden shadow-2xl border-r border-slate-700/50 backdrop-blur-xl relative z-10`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-700/50">
+        <div className="p-4 border-b border-slate-700/50 backdrop-blur-sm">
           <button
             onClick={createNewChat}
-            className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] hover:shadow-blue-500/25"
+            className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-emerald-600 hover:from-blue-700 hover:via-blue-600 hover:to-emerald-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-blue-500/40 transform hover:scale-[1.03] group relative overflow-hidden"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform translate-x-full group-hover:translate-x-0 transition-transform duration-500"></div>
+            <svg className="w-5 h-5 relative z-10 transform group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span>New Chat</span>
+            <span className="relative z-10">New Chat</span>
           </button>
         </div>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/30">
           {isLoadingChats ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+            <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-600 border-t-blue-500"></div>
+                <span className="text-xs text-slate-400">Loading chats...</span>
+              </div>
             </div>
           ) : chats.length === 0 ? (
-            <div className="text-gray-400 text-center py-8 px-4">
-              <p>No conversations yet</p>
-              <p className="text-sm mt-2">Start a new chat to begin</p>
+            <div className="text-slate-400 text-center py-12 px-4 space-y-2">
+              <div className="w-12 h-12 bg-slate-800/50 rounded-lg mx-auto flex items-center justify-center">
+                <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <p className="font-medium text-sm">No conversations</p>
+              <p className="text-xs">Start a new chat to begin</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {chats.map((chat) => (
                 <div
                   key={chat._id}
+                  onMouseEnter={() => setHoveredChatId(chat._id)}
+                  onMouseLeave={() => setHoveredChatId(null)}
                   onClick={() => loadChat(chat._id)}
                   className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
                     currentChat?._id === chat._id
-                      ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-lg'
-                      : 'hover:bg-slate-800/50 text-slate-300 hover:shadow-md'
+                      ? 'bg-gradient-to-r from-blue-600/90 to-emerald-600/90 text-white shadow-lg shadow-blue-500/20'
+                      : 'hover:bg-slate-800/40 text-slate-300 hover:text-slate-100'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium truncate text-sm">
+                      <h3 className="font-medium truncate text-sm leading-tight">
                         {chat.title}
                       </h3>
-                      <p className="text-xs opacity-75 mt-1">
+                      <p className="text-xs opacity-60 mt-1">
                         {formatTime(chat.lastMessageAt)}
                       </p>
                     </div>
-                    <button
-                      onClick={(e) => deleteChat(chat._id, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-600 rounded transition-all"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {(hoveredChatId === chat._id || currentChat?._id === chat._id) && (
+                      <button
+                        onClick={(e) => deleteChat(chat._id, e)}
+                        className="flex-shrink-0 p-1.5 hover:bg-red-600/80 rounded-lg transition-all duration-200 hover:scale-110 transform"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -275,15 +289,15 @@ export default function ChatPage() {
         </div>
 
         {/* User Info */}
-        <div className="p-4 border-t border-slate-700/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-sm font-medium">
+        <div className="p-4 border-t border-slate-700/50 backdrop-blur-sm bg-slate-900/50">
+          <div className="flex items-center space-x-3 px-2 py-2">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-emerald-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0 ring-2 ring-slate-700/50">
+              <span className="text-sm font-bold">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.fullName}</p>
+              <p className="text-sm font-semibold truncate text-slate-100">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-slate-400 truncate">{user?.email}</p>
             </div>
           </div>
@@ -291,75 +305,84 @@ export default function ChatPage() {
       </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-md border border-white/20 shadow-xl">
+        <div className="flex-1 flex flex-col bg-gradient-to-br from-white via-slate-50/50 to-blue-50/30 backdrop-blur-sm border border-white/40 shadow-xl overflow-hidden">
           {/* Chat Header */}
-          <div className="bg-white/95 backdrop-blur-md border-b border-slate-200/60 px-6 py-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h1 className="text-xl font-semibold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-              {currentChat?.title || 'GlucoTrack AI Assistant'}
-            </h1>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2 text-sm text-slate-500">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span>AI Online</span>
+          <div className="bg-gradient-to-r from-white via-slate-50/80 to-blue-50/50 backdrop-blur-md border-b border-slate-200/60 px-6 py-4 flex items-center justify-between shadow-sm relative">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"></div>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2.5 hover:bg-slate-100 rounded-lg transition-all duration-200 text-slate-700 hover:text-slate-900 group"
+              >
+                <svg className="w-5 h-5 transform group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div className="flex-1">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 via-blue-700 to-emerald-600 bg-clip-text text-transparent">
+                  {currentChat?.title || 'GlucoTrack AI Assistant'}
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">AI-Powered Health Assistant</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-50/80 rounded-full border border-emerald-200/50">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-lg shadow-emerald-500/50"></div>
+                <span className="text-xs font-medium text-emerald-700">Online</span>
+              </div>
             </div>
           </div>
-        </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
           {!currentChat || currentChat.messages?.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-100 to-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-lg">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-emerald-500/20 to-blue-500/20 blur-3xl rounded-full"></div>
+                <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-emerald-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
               </div>
-              <h2 className="text-2xl font-semibold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">
-                Welcome to GlucoTrack AI
-              </h2>
-              <p className="text-slate-600 max-w-md">
-                I'm here to help you with diabetes management, health questions, and provide personalized insights. 
-                Start a conversation by typing a message below.
-              </p>
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-700 to-emerald-600 bg-clip-text text-transparent">
+                  Welcome to GlucoTrack AI
+                </h2>
+                <p className="text-slate-600 max-w-md text-sm leading-relaxed">
+                  I'm here to help you with diabetes management, health questions, and provide personalized insights. 
+                  Start a conversation by typing a message below.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <button
                   onClick={() => setMessage("What should I know about managing my blood sugar levels?")}
-                  className="p-4 text-left bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                  className="p-4 text-left bg-white hover:bg-gradient-to-br hover:from-blue-50/50 hover:to-emerald-50/50 border border-slate-200 hover:border-blue-300/50 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group"
                 >
-                  <div className="font-medium text-slate-900 mb-1">Blood Sugar Management</div>
-                  <div className="text-sm text-slate-600">Learn about glucose monitoring and control</div>
+                  <div className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">Blood Sugar Management</div>
+                  <div className="text-xs text-slate-600 group-hover:text-slate-700">Learn about glucose monitoring and control</div>
                 </button>
                 <button
                   onClick={() => setMessage("Can you help me understand my medication schedule?")}
-                  className="p-4 text-left bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                  className="p-4 text-left bg-white hover:bg-gradient-to-br hover:from-blue-50/50 hover:to-emerald-50/50 border border-slate-200 hover:border-blue-300/50 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group"
                 >
-                  <div className="font-medium text-slate-900 mb-1">Medication Help</div>
-                  <div className="text-sm text-slate-600">Get guidance on your medications</div>
+                  <div className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">Medication Help</div>
+                  <div className="text-xs text-slate-600 group-hover:text-slate-700">Get guidance on your medications</div>
                 </button>
                 <button
                   onClick={() => setMessage("What foods should I eat to maintain healthy glucose levels?")}
-                  className="p-4 text-left bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                  className="p-4 text-left bg-white hover:bg-gradient-to-br hover:from-blue-50/50 hover:to-emerald-50/50 border border-slate-200 hover:border-blue-300/50 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group"
                 >
-                  <div className="font-medium text-slate-900 mb-1">Nutrition Advice</div>
-                  <div className="text-sm text-slate-600">Discover diabetes-friendly foods</div>
+                  <div className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">Nutrition Advice</div>
+                  <div className="text-xs text-slate-600 group-hover:text-slate-700">Discover diabetes-friendly foods</div>
                 </button>
                 <button
                   onClick={() => setMessage("How can I track my progress effectively?")}
-                  className="p-4 text-left bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                  className="p-4 text-left bg-white hover:bg-gradient-to-br hover:from-blue-50/50 hover:to-emerald-50/50 border border-slate-200 hover:border-blue-300/50 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group"
                 >
-                  <div className="font-medium text-slate-900 mb-1">Progress Tracking</div>
-                  <div className="text-sm text-slate-600">Learn about effective monitoring</div>
+                  <div className="font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">Progress Tracking</div>
+                  <div className="text-xs text-slate-600 group-hover:text-slate-700">Learn about effective monitoring</div>
                 </button>
               </div>
             </div>
@@ -368,18 +391,18 @@ export default function ChatPage() {
               {currentChat.messages.map((msg, index) => (
                 <div
                   key={msg._id || index}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                 >
-                  <div className={`flex max-w-4xl ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex max-w-4xl ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} gap-3`}>
                     {/* Avatar */}
                     <div className={`flex-shrink-0 ${msg.role === 'user' ? 'ml-3' : 'mr-3'}`}>
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg font-medium text-sm ${
                         msg.role === 'user' 
-                          ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white' 
-                          : 'bg-gradient-to-r from-slate-200 to-slate-300 text-slate-700'
+                          ? 'bg-gradient-to-br from-blue-600 to-emerald-600 text-white ring-2 ring-blue-400/30' 
+                          : 'bg-gradient-to-br from-slate-300 to-slate-400 text-slate-700'
                       }`}>
                         {msg.role === 'user' ? (
-                          <span className="text-sm font-medium">
+                          <span>
                             {user?.firstName?.[0]}{user?.lastName?.[0]}
                           </span>
                         ) : (
@@ -392,14 +415,14 @@ export default function ChatPage() {
 
                     {/* Message */}
                     <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div className={`px-4 py-3 rounded-2xl max-w-2xl shadow-lg ${
+                      <div className={`px-5 py-3.5 rounded-2xl max-w-2xl shadow-lg transition-all duration-300 hover:shadow-xl group ${
                         msg.role === 'user'
-                          ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white'
-                          : 'bg-white border border-slate-200 text-slate-900'
+                          ? 'bg-gradient-to-br from-blue-600 to-emerald-600 text-white rounded-tr-sm hover:scale-105 transform'
+                          : 'bg-white border border-slate-200/60 text-slate-900 rounded-tl-sm hover:bg-slate-50'
                       }`}>
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className={`mt-2 text-xs font-medium ${msg.role === 'user' ? 'text-blue-500/70' : 'text-slate-400'}`}>
                         {formatTime(msg.timestamp)}
                       </div>
                     </div>
@@ -409,20 +432,20 @@ export default function ChatPage() {
 
               {/* Typing Indicator */}
               {isTyping && (
-                <div className="flex justify-start">
-                  <div className="flex max-w-4xl">
+                <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex max-w-4xl gap-3">
                     <div className="flex-shrink-0 mr-3">
-                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-8 h-8 bg-gradient-to-br from-slate-300 to-slate-400 rounded-full flex items-center justify-center shadow-lg">
+                        <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                       </div>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-lg">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="bg-white border border-slate-200/60 rounded-2xl rounded-tl-sm px-5 py-3.5 shadow-lg">
+                      <div className="flex space-x-2">
+                        <div className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     </div>
                   </div>
@@ -435,46 +458,52 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200/60 p-6 shadow-lg">
-          <form onSubmit={sendMessage} className="flex space-x-4">
-            <div className="flex-1 relative">
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage(e);
-                  }
-                }}
-                placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
-                className="w-full px-4 py-3 pr-12 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none shadow-sm"
-                rows="3"
-                disabled={isTyping}
-              />
+        <div className="bg-gradient-to-t from-slate-50/80 via-white to-white/95 backdrop-blur-md border-t border-slate-200/40 p-5 shadow-2xl">
+          <form onSubmit={sendMessage} className="space-y-3">
+            <div className="flex space-x-3">
+              <div className="flex-1 relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-emerald-500/10 to-transparent rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 blur-xl pointer-events-none"></div>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage(e);
+                    }
+                  }}
+                  placeholder="Ask me anything about your health... (Shift+Enter for new line)"
+                  className="relative w-full px-5 py-3.5 bg-white border border-slate-200/60 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-300/50 transition-all duration-200 resize-none shadow-sm focus:shadow-lg focus:shadow-blue-500/10 text-slate-900 placeholder-slate-400"
+                  rows="3"
+                  disabled={isTyping}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={!message.trim() || isTyping}
-                className={`absolute bottom-3 right-3 p-2 rounded-lg transition-all duration-200 ${
+                className={`flex-shrink-0 p-4 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl transform active:scale-95 group relative overflow-hidden ${
                   message.trim() && !isTyping
-                    ? 'bg-gradient-to-r from-blue-600 to-emerald-600 text-white hover:from-blue-700 hover:to-emerald-700 shadow-lg hover:scale-105'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    ? 'bg-gradient-to-br from-blue-600 via-emerald-600 to-blue-700 text-white hover:from-blue-700 hover:via-emerald-700 hover:to-blue-800 hover:scale-105'
+                    : 'bg-slate-200/60 text-slate-400 cursor-not-allowed'
                 }`}
               >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 {isTyping ? (
-                  <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  <div className="relative flex items-center justify-center">
+                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  </div>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  <svg className="w-5 h-5 relative transform group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
                 )}
               </button>
             </div>
+            
+            <div className="text-xs text-slate-500 text-center font-medium px-2">
+              💡 AI responses are generated by your backend. Please verify medical info with healthcare professionals.
+            </div>
           </form>
-          
-          <div className="mt-2 text-xs text-slate-500 text-center">
-            AI responses are generated by your backend server. Please verify medical information with healthcare professionals.
-          </div>
         </div>
       </div>
       </div>

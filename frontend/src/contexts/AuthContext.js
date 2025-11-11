@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useReducer, useEffect } from 'react';
 import axios from 'axios';
+import { setCookie, getCookie, deleteCookie } from '../lib/cookies';
 
 // Initial state
 const initialState = {
@@ -101,6 +102,9 @@ export function AuthProvider({ children }) {
 
   // Configure axios defaults
   useEffect(() => {
+    // Always include credentials for cookies
+    axios.defaults.withCredentials = true;
+    
     if (state.token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
     } else {
@@ -118,20 +122,54 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       
+      // Check if token exists in localStorage or cookies
+      const token = localStorage.getItem('token') || getCookie('clientToken');
+      
       const response = await axios.get('/api/user/profile');
       
       if (response.data.success) {
+        let finalToken = token;
+        
+        // If we don't have a client-side token but are authenticated,
+        // try to get the token from the server
+        if (!token) {
+          try {
+            console.log('No client token found, trying to retrieve from server...');
+            const tokenResponse = await axios.get('/api/auth/token');
+            if (tokenResponse.data.success && tokenResponse.data.data.token) {
+              finalToken = tokenResponse.data.data.token;
+              console.log('Retrieved token from server successfully');
+            }
+          } catch (tokenError) {
+            console.log('Could not retrieve token from server:', tokenError.response?.status);
+          }
+        }
+        
+        // Store the token if we have one
+        if (finalToken) {
+          localStorage.setItem('token', finalToken);
+          setCookie('clientToken', finalToken, {
+            expires: 7,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+          });
+          console.log('Token stored successfully');
+        }
+        
         dispatch({
           type: AUTH_ACTIONS.LOGIN_SUCCESS,
           payload: {
             user: response.data.data.user,
-            accessToken: null // Token is in httpOnly cookie
+            accessToken: finalToken
           }
         });
       }
     } catch (error) {
       // User is not authenticated or API error
       console.log('Auth check failed (this is normal if not logged in):', error.response?.status);
+      // Clear token from localStorage and cookies if auth check fails
+      localStorage.removeItem('token');
+      deleteCookie('clientToken');
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } finally {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
@@ -150,6 +188,26 @@ export function AuthProvider({ children }) {
       });
 
       if (response.data.success) {
+        // Store token in both localStorage and cookies for API client compatibility
+        if (response.data.data.accessToken) {
+          console.log('Login successful - storing token:', {
+            hasToken: !!response.data.data.accessToken,
+            tokenPreview: response.data.data.accessToken.substring(0, 20) + '...'
+          });
+          
+          localStorage.setItem('token', response.data.data.accessToken);
+          setCookie('clientToken', response.data.data.accessToken, {
+            expires: rememberMe ? 30 : 7, // 30 days if remember me, otherwise 7 days
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+          });
+          
+          console.log('Token stored - verification:', {
+            localStorage: !!localStorage.getItem('token'),
+            cookies: !!getCookie('clientToken')
+          });
+        }
+        
         dispatch({
           type: AUTH_ACTIONS.LOGIN_SUCCESS,
           payload: response.data.data
@@ -174,6 +232,16 @@ export function AuthProvider({ children }) {
       const response = await axios.post('/api/auth/register', userData);
 
       if (response.data.success) {
+        // Store token in both localStorage and cookies for API client compatibility
+        if (response.data.data.accessToken) {
+          localStorage.setItem('token', response.data.data.accessToken);
+          setCookie('clientToken', response.data.data.accessToken, {
+            expires: 7, // 7 days
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+          });
+        }
+        
         dispatch({
           type: AUTH_ACTIONS.REGISTER_SUCCESS,
           payload: response.data.data
@@ -204,6 +272,9 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear token from localStorage and cookies
+      localStorage.removeItem('token');
+      deleteCookie('clientToken');
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
   };

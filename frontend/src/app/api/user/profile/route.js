@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '../../../../lib/mongodb.js';
+import { connectDB } from '../../../../lib/mongodb.js';
 import User from '../../../../models/User.js';
 import { withAuth } from '../../../../middleware/auth.js';
 import { validateData, profileUpdateSchema } from '../../../../lib/validation.js';
@@ -10,7 +10,7 @@ async function getProfile(request) {
     console.log('Profile API called');
     console.log('User ID from middleware:', request.userId);
     
-    await connectToDatabase();
+    await connectDB();
 
     // Get user with all data except password
     const user = await User.findById(request.userId).select('-password');
@@ -57,7 +57,7 @@ async function updateProfile(request) {
       }, { status: 400 });
     }
 
-    await connectToDatabase();
+    await connectDB();
 
     // Update user profile
     const updatedUser = await User.findByIdAndUpdate(
@@ -111,7 +111,7 @@ async function updateProfile(request) {
 // DELETE user account
 async function deleteAccount(request) {
   try {
-    await connectToDatabase();
+    await connectDB();
 
     // Soft delete - update account status instead of actually deleting
     const updatedUser = await User.findByIdAndUpdate(

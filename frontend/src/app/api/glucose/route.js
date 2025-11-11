@@ -1,205 +1,155 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '../../../lib/mongodb.js';
-import User from '../../../models/User.js';
-import { withAuth } from '../../../middleware/auth.js';
-import { validateData, glucoseReadingSchema } from '../../../lib/validation.js';
+import { connectDB } from '../../../lib/mongodb';
+import GlucoseReading from '../../../models/GlucoseReading';
+import Alert from '../../../models/Alert';
+import { verifyToken } from '../../../lib/jwt';
 
-// GET glucose readings
-async function getGlucoseReadings(request) {
+export async function GET(request) {
   try {
-    await connectToDatabase();
+    await connectDB();
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    }
 
-    // Get query parameters
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit')) || 50;
-    const page = parseInt(searchParams.get('page')) || 1;
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    const mealContext = searchParams.get('mealContext');
+    const days = parseInt(searchParams.get('days')) || 7;
+    const limit = parseInt(searchParams.get('limit')) || 100;
+    
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const readings = await GlucoseReading.find({
+      userId: decoded.userId,
+      timestamp: { $gte: startDate }
+    })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .lean();
 
-    // Build aggregation pipeline
-    const pipeline = [
-      { $match: { _id: request.userId } },
-      { $unwind: '$glucoseReadings' },
-    ];
+    // Get statistics
+    const stats = await GlucoseReading.getAverageGlucose(decoded.userId, days);
+    
+    // Calculate time in range
+    const totalReadings = readings.length;
+    const inRangeReadings = readings.filter(r => r.value >= 70 && r.value <= 140).length;
+    const timeInRange = totalReadings > 0 ? (inRangeReadings / totalReadings) * 100 : 0;
+    
+    const lowReadings = readings.filter(r => r.value < 70).length;
+    const highReadings = readings.filter(r => r.value > 140).length;
 
-    // Add date filters if provided
-    if (startDate || endDate) {
-      const dateFilter = {};
-      if (startDate) dateFilter.$gte = new Date(startDate);
-      if (endDate) dateFilter.$lte = new Date(endDate);
-      pipeline.push({
-        $match: { 'glucoseReadings.timestamp': dateFilter }
-      });
-    }
-
-    // Add meal context filter if provided
-    if (mealContext) {
-      pipeline.push({
-        $match: { 'glucoseReadings.mealContext': mealContext }
-      });
-    }
-
-    // Sort by timestamp (newest first)
-    pipeline.push({
-      $sort: { 'glucoseReadings.timestamp': -1 }
-    });
-
-    // Add pagination
-    const skip = (page - 1) * limit;
-    pipeline.push(
-      { $skip: skip },
-      { $limit: limit }
-    );
-
-    // Project only the glucose reading data
-    pipeline.push({
-      $project: {
-        _id: '$glucoseReadings._id',
-        value: '$glucoseReadings.value',
-        timestamp: '$glucoseReadings.timestamp',
-        mealContext: '$glucoseReadings.mealContext',
-        notes: '$glucoseReadings.notes'
+    return NextResponse.json({ 
+      readings: readings.map(reading => ({
+        ...reading,
+        status: reading.value < 70 ? 'low' : reading.value > 140 ? 'high' : 'normal'
+      })),
+      stats: {
+        average: stats[0]?.avgGlucose || 0,
+        min: stats[0]?.minGlucose || 0,
+        max: stats[0]?.maxGlucose || 0,
+        count: totalReadings,
+        timeInRange: Math.round(timeInRange),
+        lowReadings,
+        highReadings
       }
     });
-
-    const readings = await User.aggregate(pipeline);
-
-    // Get total count for pagination
-    const countPipeline = [
-      { $match: { _id: request.userId } },
-      { $unwind: '$glucoseReadings' },
-    ];
-
-    if (startDate || endDate) {
-      const dateFilter = {};
-      if (startDate) dateFilter.$gte = new Date(startDate);
-      if (endDate) dateFilter.$lte = new Date(endDate);
-      countPipeline.push({
-        $match: { 'glucoseReadings.timestamp': dateFilter }
-      });
-    }
-
-    if (mealContext) {
-      countPipeline.push({
-        $match: { 'glucoseReadings.mealContext': mealContext }
-      });
-    }
-
-    countPipeline.push({ $count: 'total' });
-    const countResult = await User.aggregate(countPipeline);
-    const total = countResult[0]?.total || 0;
-
-    return NextResponse.json({
-      success: true,
-      message: 'Glucose readings retrieved successfully',
-      data: {
-        readings,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        }
-      }
-    }, { status: 200 });
-
   } catch (error) {
-    console.error('Get glucose readings error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to retrieve glucose readings'
-    }, { status: 500 });
+    console.error('Error fetching glucose readings:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST new glucose reading
-async function addGlucoseReading(request) {
+export async function POST(request) {
   try {
-    const body = await request.json();
+    await connectDB();
     
-    // Validate input data
-    const validation = validateData(body, glucoseReadingSchema);
-    if (!validation.isValid) {
-      return NextResponse.json({
-        success: false,
-        message: 'Validation failed',
-        errors: validation.errors
-      }, { status: 400 });
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
     }
 
-    await connectToDatabase();
-
-    // Add glucose reading to user
-    const user = await User.findByIdAndUpdate(
-      request.userId,
-      {
-        $push: {
-          glucoseReadings: {
-            $each: [validation.data],
-            $sort: { timestamp: -1 } // Keep readings sorted by timestamp
-          }
-        }
-      },
-      { new: true, select: 'glucoseReadings' }
-    );
-
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        message: 'User not found'
-      }, { status: 404 });
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get the newly added reading
-    const newReading = user.glucoseReadings[0];
-
-    return NextResponse.json({
-      success: true,
-      message: 'Glucose reading added successfully',
-      data: {
-        reading: newReading
-      }
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error('Add glucose reading error:', error);
+    const { 
+      value, 
+      mealContext, 
+      notes, 
+      symptoms = [], 
+      medicationTaken = false,
+      exerciseRecent = false,
+      stressLevel,
+      sleepQuality 
+    } = await request.json();
     
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => ({
-        field: err.path,
-        message: err.message
-      }));
+    if (!value || value < 20 || value > 600) {
+      return NextResponse.json({ error: 'Invalid glucose value' }, { status: 400 });
+    }
+
+    const reading = new GlucoseReading({
+      userId: decoded.userId,
+      value,
+      mealContext,
+      notes,
+      symptoms,
+      medicationTaken,
+      exerciseRecent,
+      stressLevel,
+      sleepQuality,
+      timestamp: new Date()
+    });
+
+    await reading.save();
+
+    // Check for alerts
+    let alertType = null;
+    let alertMessage = '';
+    
+    if (value < 70) {
+      alertType = value < 54 ? 'critical' : 'warning';
+      alertMessage = `Low blood sugar detected: ${value} mg/dL`;
+    } else if (value > 250) {
+      alertType = 'critical';
+      alertMessage = `Very high blood sugar detected: ${value} mg/dL`;
+    } else if (value > 180) {
+      alertType = 'warning';
+      alertMessage = `High blood sugar detected: ${value} mg/dL`;
+    }
+
+    if (alertType) {
+      const alert = new Alert({
+        userId: decoded.userId,
+        type: alertType,
+        category: 'glucose',
+        title: alertType === 'critical' ? 'Critical Glucose Level' : 'Glucose Alert',
+        message: alertMessage,
+        data: {
+          glucoseValue: value
+        },
+        priority: alertType === 'critical' ? 5 : 3
+      });
       
-      return NextResponse.json({
-        success: false,
-        message: 'Validation failed',
-        errors
-      }, { status: 400 });
+      await alert.save();
     }
 
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to add glucose reading'
-    }, { status: 500 });
+    return NextResponse.json({ 
+      message: 'Glucose reading saved successfully',
+      reading: {
+        ...reading.toObject(),
+        status: value < 70 ? 'low' : value > 140 ? 'high' : 'normal'
+      },
+      alert: alertType ? { type: alertType, message: alertMessage } : null
+    }, { status: 201 });
+  } catch (error) {
+    console.error('Error saving glucose reading:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-// Export wrapped handlers with authentication
-export const GET = withAuth(getGlucoseReadings);
-export const POST = withAuth(addGlucoseReading);
-
-// Handle unsupported methods
-export async function PUT() {
-  return NextResponse.json({
-    success: false,
-    message: 'Method not allowed'
-  }, { status: 405 });
-}
-
-export async function DELETE() {
-  return NextResponse.json({
-    success: false,
-    message: 'Method not allowed'
-  }, { status: 405 });
 }

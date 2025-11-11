@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import { useApiClient } from '../../hooks/useApiClient';
 import Layout from '../../components/Layout';
 
 export default function Caregivers() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const apiClient = useApiClient();
   const router = useRouter();
   
   const [activeTab, setActiveTab] = useState('caregivers');
@@ -14,6 +16,9 @@ export default function Caregivers() {
   const [doctors, setDoctors] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [showAddCaregiver, setShowAddCaregiver] = useState(false);
+  const [showAddDoctor, setShowAddDoctor] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -27,76 +32,108 @@ export default function Caregivers() {
     }
   }, [isAuthenticated]);
 
-  const loadCaregiverData = () => {
-    // Mock data
-    setCaregivers([
-      {
-        id: 1,
-        name: 'Sarah Johnson',
-        relationship: 'Spouse',
-        phone: '+1 (555) 123-4567',
-        email: 'sarah.johnson@email.com',
-        alertsEnabled: true,
-        emergencyContact: true,
-        lastActive: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        avatar: 'SJ'
-      },
-      {
-        id: 2,
-        name: 'Michael Johnson',
-        relationship: 'Son',
-        phone: '+1 (555) 987-6543',
-        email: 'michael.j@email.com',
-        alertsEnabled: true,
-        emergencyContact: false,
-        lastActive: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        avatar: 'MJ'
-      }
-    ]);
+  const loadCaregiverData = async () => {
+    try {
+      setIsLoadingData(true);
+      
+      // Token is automatically managed by useApiClient hook
 
-    setDoctors([
-      {
-        id: 1,
-        name: 'Dr. Emily Chen',
-        specialty: 'Endocrinologist',
-        hospital: 'City Medical Center',
-        phone: '+1 (555) 234-5678',
-        email: 'dr.chen@citymedical.com',
-        nextAppt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        avatar: 'EC',
-        verified: true
-      },
-      {
-        id: 2,
-        name: 'Dr. Robert Martinez',
-        specialty: 'Nutritionist',
-        hospital: 'Wellness Clinic',
-        phone: '+1 (555) 345-6789',
-        email: 'dr.martinez@wellness.com',
-        nextAppt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        avatar: 'RM',
-        verified: true
+      // Fetch caregivers
+      try {
+        const caregiversResponse = await apiClient.getCaregivers();
+        setCaregivers(caregiversResponse.caregivers || []);
+      } catch (error) {
+        console.error('Error loading caregivers:', error);
+        // Fall back to mock data
+        setCaregivers([
+          {
+            _id: '1',
+            name: 'Sarah Johnson',
+            relationship: 'spouse',
+            phone: '+1 (555) 123-4567',
+            email: 'sarah.johnson@email.com',
+            alertsEnabled: true,
+            emergencyContact: true,
+            lastActive: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            inviteStatus: 'accepted'
+          },
+          {
+            _id: '2',
+            name: 'Michael Johnson',
+            relationship: 'child',
+            phone: '+1 (555) 987-6543',
+            email: 'michael.j@email.com',
+            alertsEnabled: true,
+            emergencyContact: false,
+            lastActive: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            inviteStatus: 'accepted'
+          }
+        ]);
       }
-    ]);
 
-    setAlerts([
-      {
-        id: 1,
-        type: 'critical',
-        message: 'Low blood sugar detected (65 mg/dL)',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
-        sentTo: ['Sarah Johnson', 'Dr. Emily Chen'],
-        acknowledged: false
-      },
-      {
-        id: 2,
-        type: 'warning',
-        message: 'Missed medication reminder',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        sentTo: ['Sarah Johnson'],
-        acknowledged: true
+      // Fetch doctors
+      try {
+        const doctorsResponse = await apiClient.getDoctors();
+        setDoctors(doctorsResponse.doctors || []);
+      } catch (error) {
+        console.error('Error loading doctors:', error);
+        // Fall back to mock data
+        setDoctors([
+          {
+            _id: '1',
+            name: 'Dr. Emily Chen',
+            specialty: 'endocrinologist',
+            hospital: 'City Medical Center',
+            phone: '+1 (555) 234-5678',
+            email: 'dr.chen@citymedical.com',
+            nextAppt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            verified: true
+          },
+          {
+            _id: '2',
+            name: 'Dr. Robert Martinez',
+            specialty: 'nutritionist',
+            hospital: 'Wellness Clinic',
+            phone: '+1 (555) 345-6789',
+            email: 'dr.martinez@wellness.com',
+            nextAppt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            verified: true
+          }
+        ]);
       }
-    ]);
+
+      // Fetch alerts
+      try {
+        const alertsResponse = await apiClient.getAlerts({ limit: 10 });
+        setAlerts(alertsResponse.alerts || []);
+      } catch (error) {
+        console.error('Error loading alerts:', error);
+        // Fall back to mock data
+        setAlerts([
+          {
+            _id: '1',
+            type: 'critical',
+            message: 'Low blood sugar detected (65 mg/dL)',
+            timestamp: new Date(Date.now() - 30 * 60 * 1000),
+            sentTo: ['Sarah Johnson'],
+            acknowledged: false
+          },
+          {
+            _id: '2',
+            type: 'warning',
+            message: 'Missed medication reminder',
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            sentTo: ['Sarah Johnson'],
+            acknowledged: true
+          }
+        ]);
+      }
+
+    } catch (error) {
+      console.error('Error loading caregiver data:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
   };
 
   const generateReport = async () => {
@@ -109,20 +146,57 @@ export default function Caregivers() {
     }, 3000);
   };
 
-  const sendEmergencyAlert = () => {
-    // Simulate emergency alert
-    const newAlert = {
-      id: Date.now(),
-      type: 'emergency',
-      message: 'Emergency SOS activated - Immediate assistance needed',
-      timestamp: new Date(),
-      sentTo: caregivers.filter(c => c.emergencyContact).map(c => c.name),
-      acknowledged: false
-    };
-    setAlerts(prev => [newAlert, ...prev]);
+  const sendEmergencyAlert = async () => {
+    try {
+      const alertData = {
+        type: 'emergency',
+        category: 'emergency',
+        title: 'Emergency SOS Activated',
+        message: 'Emergency SOS activated - Immediate assistance needed',
+        sendToContacts: true
+      };
+
+      await apiClient.createAlert(alertData);
+      
+      // Reload alerts to show the new one
+      await loadCaregiverData();
+      
+      alert('Emergency alert sent to all emergency contacts!');
+    } catch (error) {
+      console.error('Error sending emergency alert:', error);
+      alert('Failed to send emergency alert. Please call 911 directly.');
+    }
   };
 
-  if (isLoading) {
+  const handleAddCaregiver = async (caregiverData) => {
+    try {
+      // Token is automatically managed by useApiClient hook
+      
+      await apiClient.addCaregiver(caregiverData);
+      setShowAddCaregiver(false);
+      await loadCaregiverData(); // Reload data
+      alert('Caregiver added successfully!');
+    } catch (error) {
+      console.error('Error adding caregiver:', error);
+      alert('Failed to add caregiver. Please try again.');
+    }
+  };
+
+  const handleAddDoctor = async (doctorData) => {
+    try {
+      // Token is automatically managed by useApiClient hook
+      
+      await apiClient.addDoctor(doctorData);
+      setShowAddDoctor(false);
+      await loadCaregiverData(); // Reload data
+      alert('Doctor added successfully!');
+    } catch (error) {
+      console.error('Error adding doctor:', error);
+      alert('Failed to add doctor. Please try again.');
+    }
+  };
+
+  if (isLoading || isLoadingData) {
     return (
       <Layout>
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
@@ -209,7 +283,10 @@ export default function Caregivers() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-slate-900">Family Caregivers</h2>
-                <button className="bg-gradient-to-r from-blue-600 to-emerald-600 text-white px-6 py-2 rounded-xl font-medium hover:from-blue-700 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                <button 
+                  onClick={() => setShowAddCaregiver(true)}
+                  className="bg-gradient-to-r from-blue-600 to-emerald-600 text-white px-6 py-2 rounded-xl font-medium hover:from-blue-700 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
                   Add Caregiver
                 </button>
               </div>
@@ -217,7 +294,7 @@ export default function Caregivers() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {caregivers.map((caregiver, index) => (
                   <div
-                    key={caregiver.id}
+                    key={caregiver._id || caregiver.id}
                     className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
@@ -253,7 +330,7 @@ export default function Caregivers() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-slate-500">
-                          Last active: {caregiver.lastActive.toLocaleDateString()}
+                          Last active: {caregiver.lastActive ? new Date(caregiver.lastActive).toLocaleDateString() : 'Never'}
                         </span>
                         <div className="flex items-center space-x-2">
                           <div className={`w-2 h-2 rounded-full ${caregiver.alertsEnabled ? 'bg-green-500' : 'bg-slate-300'}`}></div>
@@ -274,7 +351,10 @@ export default function Caregivers() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-slate-900">Healthcare Team</h2>
-                <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                <button 
+                  onClick={() => setShowAddDoctor(true)}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
                   Add Doctor
                 </button>
               </div>
@@ -282,7 +362,7 @@ export default function Caregivers() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {doctors.map((doctor, index) => (
                   <div
-                    key={doctor.id}
+                    key={doctor._id || doctor.id}
                     className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
@@ -317,7 +397,7 @@ export default function Caregivers() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a4 4 0 118 0v4m-4 8a2 2 0 100-4 2 2 0 000 4zm6 0a2 2 0 100-4 2 2 0 000 4zm-6 4a2 2 0 100-4 2 2 0 000 4zm6 0a2 2 0 100-4 2 2 0 000 4z" />
                         </svg>
-                        <span>Next: {doctor.nextAppt.toLocaleDateString()}</span>
+                        <span>Next: {doctor.nextAppt ? new Date(doctor.nextAppt).toLocaleDateString() : 'Not scheduled'}</span>
                       </div>
                       <div className="flex space-x-2 mt-4">
                         <button className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-300">
@@ -365,7 +445,7 @@ export default function Caregivers() {
                           Sent to: {alert.sentTo.join(', ')}
                         </p>
                         <p className="text-slate-500 text-xs">
-                          {alert.timestamp.toLocaleString()}
+                          {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'Unknown time'}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -439,6 +519,246 @@ export default function Caregivers() {
           )}
         </div>
       </div>
+
+      {/* Add Caregiver Modal */}
+      {showAddCaregiver && <AddCaregiverForm onSubmit={handleAddCaregiver} onClose={() => setShowAddCaregiver(false)} />}
+
+      {/* Add Doctor Modal */}
+      {showAddDoctor && <AddDoctorForm onSubmit={handleAddDoctor} onClose={() => setShowAddDoctor(false)} />}
     </Layout>
+  );
+}
+
+// Add Caregiver Form Component
+function AddCaregiverForm({ onSubmit, onClose }) {
+  const [formData, setFormData] = useState({
+    name: '',
+    relationship: 'spouse',
+    email: '',
+    phone: '',
+    emergencyContact: false,
+    alertsEnabled: true
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.email || !formData.phone) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl animate-scale-in">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6">Add Caregiver</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter caregiver's name"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Relationship *</label>
+            <select
+              value={formData.relationship}
+              onChange={(e) => setFormData(prev => ({ ...prev, relationship: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="spouse">Spouse</option>
+              <option value="parent">Parent</option>
+              <option value="child">Child</option>
+              <option value="sibling">Sibling</option>
+              <option value="friend">Friend</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter email address"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Phone *</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter phone number"
+              required
+            />
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="emergencyContact"
+              checked={formData.emergencyContact}
+              onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact: e.target.checked }))}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="emergencyContact" className="text-sm font-medium text-slate-700">
+              Emergency Contact
+            </label>
+          </div>
+
+          <div className="flex space-x-4 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-all duration-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-xl hover:from-blue-700 hover:to-emerald-700 transition-all duration-300"
+            >
+              Add Caregiver
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add Doctor Form Component
+function AddDoctorForm({ onSubmit, onClose }) {
+  const [formData, setFormData] = useState({
+    name: '',
+    specialty: 'primary_care',
+    hospital: '',
+    email: '',
+    phone: '',
+    nextAppointment: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.hospital || !formData.email || !formData.phone) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl animate-scale-in">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6">Add Doctor</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Doctor Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="Dr. John Smith"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Specialty *</label>
+            <select
+              value={formData.specialty}
+              onChange={(e) => setFormData(prev => ({ ...prev, specialty: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              <option value="primary_care">Primary Care</option>
+              <option value="endocrinologist">Endocrinologist</option>
+              <option value="nutritionist">Nutritionist</option>
+              <option value="cardiologist">Cardiologist</option>
+              <option value="ophthalmologist">Ophthalmologist</option>
+              <option value="podiatrist">Podiatrist</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Hospital/Clinic *</label>
+            <input
+              type="text"
+              value={formData.hospital}
+              onChange={(e) => setFormData(prev => ({ ...prev, hospital: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="City Medical Center"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="doctor@hospital.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Phone *</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="(555) 123-4567"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Next Appointment</label>
+            <input
+              type="datetime-local"
+              value={formData.nextAppointment}
+              onChange={(e) => setFormData(prev => ({ ...prev, nextAppointment: e.target.value }))}
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex space-x-4 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-all duration-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+            >
+              Add Doctor
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

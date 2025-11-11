@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyToken, extractTokenFromHeader } from '../lib/jwt.js';
-import connectToDatabase from '../lib/mongodb.js';
+import { connectDB } from '../lib/mongodb.js';
 import User from '../models/User.js';
 
 /**
@@ -39,7 +39,7 @@ export const withAuth = (handler) => {
       const decoded = verifyToken(token);
       
       // Connect to database
-      await connectToDatabase();
+      await connectDB();
       
       // Get user from database
       const user = await User.findById(decoded.userId).select('-password');
@@ -114,7 +114,7 @@ export const withOptionalAuth = (handler) => {
           const decoded = verifyToken(token);
           
           // Connect to database
-          await connectToDatabase();
+          await connectDB();
           
           // Get user from database
           const user = await User.findById(decoded.userId).select('-password');

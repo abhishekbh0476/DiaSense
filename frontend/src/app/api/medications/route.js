@@ -1,140 +1,138 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '../../../lib/mongodb.js';
-import User from '../../../models/User.js';
-import { withAuth } from '../../../middleware/auth.js';
-import { validateData, medicationSchema } from '../../../lib/validation.js';
+import { connectDB } from '../../../lib/mongodb';
+import Medication from '../../../models/Medication';
+import MedicationLog from '../../../models/MedicationLog';
+import { verifyToken } from '../../../lib/jwt';
 
-// GET medications
-async function getMedications(request) {
+export async function GET(request) {
   try {
-    await connectToDatabase();
+    await connectDB();
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    }
 
-    // Get query parameters
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const isActive = searchParams.get('active');
-
-    // Build query
-    const user = await User.findById(request.userId).select('medications');
+    const activeOnly = searchParams.get('active') === 'true';
     
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        message: 'User not found'
-      }, { status: 404 });
+    const query = { userId: decoded.userId };
+    if (activeOnly) {
+      query.isActive = true;
     }
 
-    let medications = user.medications;
+    const medications = await Medication.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
 
-    // Filter by active status if specified
-    if (isActive !== null) {
-      const activeFilter = isActive === 'true';
-      medications = medications.filter(med => med.isActive === activeFilter);
-    }
+    // Get adherence data for each medication
+    const medicationsWithAdherence = await Promise.all(
+      medications.map(async (med) => {
+        const adherenceData = await MedicationLog.getAdherenceRate(decoded.userId, 30);
+        const logs = await MedicationLog.find({
+          userId: decoded.userId,
+          medicationId: med._id,
+          scheduledTime: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        }).sort({ scheduledTime: -1 }).limit(10);
 
-    // Sort by creation date (newest first)
-    medications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    return NextResponse.json({
-      success: true,
-      message: 'Medications retrieved successfully',
-      data: {
-        medications
-      }
-    }, { status: 200 });
-
-  } catch (error) {
-    console.error('Get medications error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to retrieve medications'
-    }, { status: 500 });
-  }
-}
-
-// POST new medication
-async function addMedication(request) {
-  try {
-    const body = await request.json();
-    
-    // Validate input data
-    const validation = validateData(body, medicationSchema);
-    if (!validation.isValid) {
-      return NextResponse.json({
-        success: false,
-        message: 'Validation failed',
-        errors: validation.errors
-      }, { status: 400 });
-    }
-
-    await connectToDatabase();
-
-    // Add medication to user
-    const user = await User.findByIdAndUpdate(
-      request.userId,
-      {
-        $push: {
-          medications: validation.data
-        }
-      },
-      { new: true, select: 'medications' }
+        return {
+          ...med,
+          adherenceRate: adherenceData[0]?.adherenceRate || 0,
+          recentLogs: logs
+        };
+      })
     );
 
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        message: 'User not found'
-      }, { status: 404 });
-    }
-
-    // Get the newly added medication
-    const newMedication = user.medications[user.medications.length - 1];
-
-    return NextResponse.json({
-      success: true,
-      message: 'Medication added successfully',
-      data: {
-        medication: newMedication
-      }
-    }, { status: 201 });
-
+    return NextResponse.json({ 
+      medications: medicationsWithAdherence 
+    });
   } catch (error) {
-    console.error('Add medication error:', error);
-    
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => ({
-        field: err.path,
-        message: err.message
-      }));
-      
-      return NextResponse.json({
-        success: false,
-        message: 'Validation failed',
-        errors
-      }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to add medication'
-    }, { status: 500 });
+    console.error('Error fetching medications:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Export wrapped handlers with authentication
-export const GET = withAuth(getMedications);
-export const POST = withAuth(addMedication);
+export async function POST(request) {
+  try {
+    await connectDB();
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    }
 
-// Handle unsupported methods
-export async function PUT() {
-  return NextResponse.json({
-    success: false,
-    message: 'Method not allowed'
-  }, { status: 405 });
-}
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
 
-export async function DELETE() {
-  return NextResponse.json({
-    success: false,
-    message: 'Method not allowed'
-  }, { status: 405 });
+    const { 
+      name, 
+      type,
+      dosage,
+      frequency,
+      instructions,
+      prescribedBy,
+      startDate,
+      endDate,
+      reminders
+    } = await request.json();
+    
+    if (!name || !type || !dosage || !frequency || !startDate) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const medication = new Medication({
+      userId: decoded.userId,
+      name,
+      type,
+      dosage,
+      frequency,
+      instructions,
+      prescribedBy,
+      startDate: new Date(startDate),
+      endDate: endDate ? new Date(endDate) : null,
+      reminders: reminders || { enabled: true, minutesBefore: 15 }
+    });
+
+    await medication.save();
+
+    // Create medication logs for the next 30 days
+    const logs = [];
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      for (let i = 0; i < frequency.timesPerDay; i++) {
+        if (frequency.times && frequency.times[i]) {
+          const scheduledTime = new Date(date);
+          scheduledTime.setHours(frequency.times[i].hour, frequency.times[i].minute, 0, 0);
+          
+          logs.push({
+            userId: decoded.userId,
+            medicationId: medication._id,
+            scheduledTime,
+            status: 'pending'
+          });
+        }
+      }
+    }
+
+    if (logs.length > 0) {
+      await MedicationLog.insertMany(logs);
+    }
+
+    return NextResponse.json({ 
+      message: 'Medication added successfully',
+      medication: medication.toObject()
+    }, { status: 201 });
+  } catch (error) {
+    console.error('Error adding medication:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

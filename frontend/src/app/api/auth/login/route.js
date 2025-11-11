@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '../../../../lib/mongodb.js';
+import { connectDB } from '../../../../lib/mongodb.js';
 import User from '../../../../models/User.js';
 import { generateToken, generateRefreshToken } from '../../../../lib/jwt.js';
 import { validateData, loginSchema } from '../../../../lib/validation.js';
@@ -22,7 +22,7 @@ export async function POST(request) {
     const { email, password, rememberMe } = validation.data;
 
     // Connect to database
-    await connectToDatabase();
+    await connectDB();
 
     // Find user by email and include password
     const user = await User.findByEmail(email);
