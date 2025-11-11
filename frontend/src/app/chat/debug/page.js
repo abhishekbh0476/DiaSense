@@ -195,7 +195,7 @@ export default function ChatDebugPage() {
         <div className="bg-blue-50 rounded-lg p-6 mt-8">
           <h2 className="text-xl font-semibold mb-4">Debug Instructions</h2>
           <ol className="list-decimal list-inside space-y-2 text-sm">
-            <li>Make sure you're logged in to test authenticated endpoints</li>
+            <li>Make sure you&apos;re logged in to test authenticated endpoints</li>
             <li>Start your Python backend: <code className="bg-gray-200 px-2 py-1 rounded">python server.py</code></li>
             <li>Check that your backend is running on <code className="bg-gray-200 px-2 py-1 rounded">http://localhost:5000</code></li>
             <li>Test each endpoint to identify where the issue is</li>

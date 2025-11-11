@@ -351,7 +351,7 @@ export default function ChatPage() {
                   Welcome to GlucoTrack AI
                 </h2>
                 <p className="text-slate-600 max-w-md text-sm leading-relaxed">
-                  I'm here to help you with diabetes management, health questions, and provide personalized insights. 
+                  I&apos;m here to help you with diabetes management, health questions, and provide personalized insights. 
                   Start a conversation by typing a message below.
                 </p>
               </div>

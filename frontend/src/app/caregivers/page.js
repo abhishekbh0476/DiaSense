@@ -30,6 +30,7 @@ export default function Caregivers() {
     if (isAuthenticated) {
       loadCaregiverData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const loadCaregiverData = async () => {

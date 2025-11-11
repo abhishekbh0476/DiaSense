@@ -116,7 +116,7 @@ export default function Home() {
                 </li>
                 <li className="flex items-start">
                   <span className="w-2 h-2 bg-purple-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                  Early warnings: "Your glucose may drop in 2 hours"
+                  Early warnings: &quot;Your glucose may drop in 2 hours&quot;
                 </li>
                 <li className="flex items-start">
                   <span className="w-2 h-2 bg-purple-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
@@ -209,7 +209,7 @@ export default function Home() {
                 Why Choose GlucoTrack?
               </h2>
               <p className="text-lg text-gray-600 mb-6">
-                Managing diabetes shouldn't be overwhelming. Our AI-powered platform combines cutting-edge technology 
+                Managing diabetes shouldn&apos;t be overwhelming. Our AI-powered platform combines cutting-edge technology 
                 with human-centered design to make blood glucose management simple, intelligent, and effective.
               </p>
               <div className="space-y-4">
@@ -252,7 +252,7 @@ export default function Home() {
               <div className="bg-white rounded-2xl shadow-2xl p-8">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Today's Average</span>
+                    <span className="text-sm text-gray-500">Today&apos;s Average</span>
                     <span className="text-2xl font-bold text-green-600">142 mg/dL</span>
                   </div>
                   <div className="h-2 bg-gray-200 rounded-full">

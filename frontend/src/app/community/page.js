@@ -32,6 +32,7 @@ export default function Community() {
     if (isAuthenticated) {
       loadCommunityData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const loadCommunityData = async () => {

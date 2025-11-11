@@ -26,6 +26,7 @@ export default function Analytics() {
     if (isAuthenticated && user) {
       loadAnalyticsData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, timeRange]);
 
   const loadAnalyticsData = async () => {
