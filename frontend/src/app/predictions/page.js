@@ -314,7 +314,10 @@ export default function Predictions() {
                 <p className="text-slate-600 text-sm">Connect your continuous glucose monitor for real-time predictions</p>
               </div>
             </div>
-            <button className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-2 rounded-xl font-medium hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+            <button
+              onClick={() => router.push('/monitor')}
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-2 rounded-xl font-medium hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+            >
               Connect Device
             </button>
           </div>

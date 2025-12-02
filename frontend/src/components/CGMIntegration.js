@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function CGMIntegration({ onDataReceived }) {
   const [isConnected, setIsConnected] = useState(false);
@@ -54,6 +55,8 @@ export default function CGMIntegration({ onDataReceived }) {
       if (interval) clearInterval(interval);
     };
   }, [isConnected, cgmDevice, lastReading, onDataReceived]);
+
+  const router = useRouter();
 
   const getTrend = (current, previous) => {
     const diff = current - previous;
@@ -166,11 +169,19 @@ export default function CGMIntegration({ onDataReceived }) {
             <p className="text-sm text-gray-600">Connect your continuous glucose monitor for real-time predictions</p>
           </div>
         </div>
-        <div className={`text-sm font-medium ${getStatusColor()}`}>
-          {connectionStatus === 'connected' && '🟢 Connected'}
-          {connectionStatus === 'connecting' && '🟡 Connecting...'}
-          {connectionStatus === 'error' && '🔴 Connection Error'}
-          {connectionStatus === 'disconnected' && '⚪ Disconnected'}
+        <div className="flex items-center gap-3">
+          <div className={`text-sm font-medium ${getStatusColor()}`}>
+            {connectionStatus === 'connected' && '🟢 Connected'}
+            {connectionStatus === 'connecting' && '🟡 Connecting...'}
+            {connectionStatus === 'error' && '🔴 Connection Error'}
+            {connectionStatus === 'disconnected' && '⚪ Disconnected'}
+          </div>
+          <button
+            onClick={() => router.push('/monitor')}
+            className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Open Monitor
+          </button>
         </div>
       </div>
 

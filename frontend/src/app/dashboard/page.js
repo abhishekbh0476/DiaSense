@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApiClient } from '../../hooks/useApiClient';
 import Layout from '../../components/Layout';
-import CGMIntegration from '../../components/CGMIntegration';
 
 // Dynamic imports for modal components
 const GlucoseReadingsModal = dynamic(() => import('../../components/GlucoseReadingsModal'), { ssr: false });
@@ -315,9 +314,24 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* CGM Integration */}
+        {/* CGM Integration (simplified) */}
         <div className="mb-8 animate-slide-up animation-delay-600">
-          <CGMIntegration onDataReceived={handleCGMData} />
+          <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Connect CGM</h3>
+                <p className="text-sm text-gray-600">Connect your continuous glucose monitor to view live readings.</p>
+              </div>
+              <div>
+                <button
+                  onClick={() => router.push('/monitor')}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Connect CGM
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Real-time CGM Display */}

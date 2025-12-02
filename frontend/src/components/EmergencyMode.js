@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useApiClient } from '../hooks/useApiClient';
 
 export default function EmergencyMode() {
   const { user } = useAuth();
@@ -9,6 +10,11 @@ export default function EmergencyMode() {
   const [countdown, setCountdown] = useState(0);
   const [emergencyType, setEmergencyType] = useState(null);
   const [location, setLocation] = useState(null);
+  const apiClient = useApiClient();
+  const [contacts, setContacts] = useState([]);
+  const [smsResults, setSmsResults] = useState(null);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     // Get user's location for emergency services
@@ -27,48 +33,100 @@ export default function EmergencyMode() {
     }
   }, []);
 
-  const sendEmergencyAlert = useCallback(async () => {
-    const emergencyData = {
-      userId: user?.id,
-      userName: user?.fullName,
-      emergencyType,
-      timestamp: new Date().toISOString(),
-      location: location ? {
-        lat: location.latitude,
-        lng: location.longitude,
-        address: 'Getting address...'
-      } : null,
-      currentGlucose: 65,
-      lastReading: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      medications: user?.medications || [],
-      emergencyContacts: [
-        { name: 'Sarah Johnson', phone: '+1 (555) 123-4567', relationship: 'Spouse' },
-        { name: 'Dr. Emily Chen', phone: '+1 (555) 234-5678', relationship: 'Doctor' }
-      ]
+  // Load emergency contacts when modal opens
+  useEffect(() => {
+    let cancelled = false;
+    const loadContacts = async () => {
+      if (!isEmergencyActive) return;
+      setLoadingContacts(true);
+      try {
+        const resp = await apiClient.getCaregivers();
+        let found = (resp.caregivers || []).filter(c => c.emergencyContact && c.alertsEnabled).map(c => ({ name: c.name, phone: c.phone }));
+        if (!found.length && user?.emergencyContacts) {
+          found = user.emergencyContacts.map(c => ({ name: c.name || c.label || 'Contact', phone: c.phone }));
+        }
+        if (!cancelled) setContacts(found);
+      } catch (err) {
+        console.warn('Failed to load caregivers for emergency modal', err);
+        if (!cancelled && user?.emergencyContacts) {
+          setContacts(user.emergencyContacts.map(c => ({ name: c.name || c.label || 'Contact', phone: c.phone })));
+        }
+      } finally {
+        if (!cancelled) setLoadingContacts(false);
+      }
     };
 
+    loadContacts();
+    return () => { cancelled = true; };
+  }, [isEmergencyActive, apiClient, user]);
+
+  const sendEmergencyAlert = useCallback(async () => {
+    setSending(true);
     try {
-      const response = await fetch('/api/alerts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Use currently-loaded contacts (if any) or fetch fresh
+      let useContacts = contacts && contacts.length ? contacts : [];
+      if (!useContacts.length) {
+        try {
+          const resp = await apiClient.getCaregivers();
+          useContacts = (resp.caregivers || []).filter(c => c.emergencyContact && c.alertsEnabled).map(c => ({ name: c.name, phone: c.phone }));
+        } catch (err) {
+          console.warn('Failed to load caregivers before sending', err);
+        }
+      }
+
+      if (!useContacts.length && user?.emergencyContacts) {
+        useContacts = user.emergencyContacts;
+      }
+
+      const alertPayload = {
+        type: 'emergency',
+        category: 'glucose',
+        title: 'Emergency SOS Activated',
+        message: `${user?.firstName || 'User'} may need assistance: ${emergencyType || 'emergency'}`,
+        data: {
+          location: location ? { lat: location.latitude, lng: location.longitude } : null,
+          currentGlucose: user?.lastGlucose || null,
         },
-        body: JSON.stringify(emergencyData)
-      });
-      if (response.ok) {
-        console.log('Emergency alert sent successfully');
-        alert(`Emergency alert sent successfully!\n\nContacts notified:\n- ${emergencyData.emergencyContacts.map(c => c.name).join('\n- ')}\n\nLocation: ${location ? 'Shared' : 'Not available'}\nCurrent glucose: ${emergencyData.currentGlucose} mg/dL`);
-        setIsEmergencyActive(false);
+        sendToContacts: true
+      };
+
+      // call backend to create alert and trigger notifications
+      const createResp = await apiClient.createAlert(alertPayload);
+      console.log('Emergency alert created:', createResp);
+
+      // server should return the saved alert; try to extract smsResults
+      const returnedAlert = createResp.alert || createResp.data || null;
+      const results = returnedAlert?.smsResults || null;
+      setSmsResults(results);
+
+      // Show a user-friendly message depending on results
+      if (results && results.length) {
+        alert(`Emergency SMS sent to ${results.length} contact(s).`);
+      } else {
+        // No sms results - explain possible reasons using server-provided flag
+        let reason = 'No SMS were sent.';
+        const twilioConfigured = typeof createResp.twilioConfigured !== 'undefined' ? createResp.twilioConfigured : null;
+        if (twilioConfigured === false) {
+          reason += ' Twilio is not configured on the server.';
+        } else if (!useContacts.length) {
+          reason += ' No emergency contacts with valid phone numbers were found.';
+        } else if (twilioConfigured === null) {
+          reason += ' Server did not report Twilio status; check server logs.';
+        } else {
+          reason += ' Check server logs for details (possible invalid numbers or sending errors).';
+        }
+        alert(`Emergency alert created but ${reason}`);
       }
     } catch (error) {
       console.error('Error sending emergency alert:', error);
-      alert('Failed to send emergency alert. Please call 911 directly.');
+      alert('Failed to send emergency alert. Please call emergency services directly.');
     } finally {
+      setSending(false);
       setIsEmergencyActive(false);
       setCountdown(0);
       setEmergencyType(null);
     }
-  }, [user, location, emergencyType]);
+  }, [user, location, emergencyType, apiClient, contacts]);
 
   useEffect(() => {
     let interval;
@@ -154,10 +212,20 @@ export default function EmergencyMode() {
         <div className="bg-red-50 rounded-xl p-4 mb-6 border border-red-200">
           <h3 className="font-semibold text-red-900 mb-2">Alert Details:</h3>
           <div className="space-y-1 text-sm text-red-800">
-            <div>• Current glucose: 65 mg/dL (LOW)</div>
+            <div>• Current glucose: {user?.lastGlucose ?? 'Unknown'}</div>
             <div>• Location: {location ? 'Will be shared' : 'Not available'}</div>
-            <div>• Contacts: Sarah Johnson, Dr. Emily Chen</div>
-            <div>• Medical info: Type 2 diabetes, current medications</div>
+            <div>
+              • Contacts: {loadingContacts ? 'Loading...' : (
+                contacts && contacts.length ? (
+                  <ul className="list-none pl-0">
+                    {contacts.map((c, idx) => (
+                      <li key={idx} className="truncate">{c.name || c.label || 'Contact'} — {c.phone || 'No number'}</li>
+                    ))}
+                  </ul>
+                ) : 'No emergency contacts found'
+              )}
+            </div>
+            <div>• Medical info: {user?.medicalInfo || 'Not provided'}</div>
           </div>
         </div>
 
@@ -176,6 +244,30 @@ export default function EmergencyMode() {
             Send Now
           </button>
         </div>
+        {/* SMS Results (if any) */}
+        {smsResults && smsResults.length > 0 && (
+          <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
+            <h4 className="text-sm font-semibold mb-2">SMS Send Results</h4>
+            <div className="space-y-2 text-sm text-slate-700">
+              {smsResults.map((r, i) => (
+                <div key={i} className="flex justify-between items-start">
+                  <div className="truncate">
+                    <div className="font-medium">{r.toName || r.to || 'Recipient'}</div>
+                    <div className="text-xs text-slate-500">{r.toPhone || r.to || ''}</div>
+                  </div>
+                  <div className="ml-4 text-right">
+                    {r.success ? (
+                      <div className="text-green-600 font-semibold">Sent</div>
+                    ) : (
+                      <div className="text-red-600 font-medium">Failed</div>
+                    )}
+                    {r.error && <div className="text-xs text-red-500">{r.error}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="mt-6 pt-6 border-t border-slate-200">
