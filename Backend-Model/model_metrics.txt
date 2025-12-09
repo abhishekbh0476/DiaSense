@@ -1,0 +1,66 @@
+
+GLUCOSE PREDICTION MODEL - TRAINING REPORT
+======================================================================
+Training Date: 2025-12-09 15:44:52
+Dataset: E:\Major Project code\Major_Project\Backend-Model\glucose_dataset.csv
+
+DATASET INFORMATION
+======================================================================
+Total Samples: 200
+Training Samples: 160
+Test Samples: 40
+Features: HeartRate, SpO2, GSR
+Glucose Range: 61.62 - 171.75 mg/dL
+
+REGRESSION MODEL (Glucose Prediction)
+======================================================================
+Model: RandomForestRegressor (300 trees)
+Training Metrics:
+  - MSE: 7.5126
+  - RMSE: 2.7409 mg/dL
+  - R²: 0.9877
+
+Test Metrics:
+  - MSE: 46.5257
+  - RMSE: 6.8210 mg/dL
+  - R²: 0.8508
+
+Feature Importance:
+  - HeartRate: 0.3019
+  - SpO2: 0.0255
+  - GSR: 0.6726
+
+CLASSIFICATION MODEL (Diabetes Status)
+======================================================================
+Model: RandomForestClassifier (300 trees)
+Classes: Non-Diabetic, Pre-Diabetic, Diabetic
+
+Training Accuracy: 1.0000 (100.00%)
+Test Accuracy: 0.8500 (85.00%)
+
+Feature Importance:
+  - HeartRate: 0.3653
+  - SpO2: 0.1064
+  - GSR: 0.5283
+
+Confusion Matrix (Test Set):
+[[ 2  0  0]
+ [ 0 17  3]
+ [ 1  2 15]]
+
+CLASSIFICATION REPORT (Test Set)
+              precision    recall  f1-score   support
+
+    Diabetic       0.67      1.00      0.80         2
+Non-Diabetic       0.89      0.85      0.87        20
+Pre-Diabetic       0.83      0.83      0.83        18
+
+    accuracy                           0.85        40
+   macro avg       0.80      0.89      0.84        40
+weighted avg       0.86      0.85      0.85        40
+
+
+MODEL FILES
+======================================================================
+Location: E:\Major Project code\Major_Project\Backend-Model\rf_glucose_model.pkl
+File Size: 6205.89 KB

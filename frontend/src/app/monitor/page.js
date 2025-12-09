@@ -1,80 +1,53 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import Chart from 'chart.js/auto';
+import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
 
 export default function MonitorPage() {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
   const [device, setDevice] = useState(null);
   const [characteristic, setCharacteristic] = useState(null);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [spo2, setSpo2] = useState('--');
   const [hr, setHr] = useState('--');
-  const [bp, setBp] = useState('--/--');
+  const [gsr, setGsr] = useState('--');
+  const [glucose, setGlucose] = useState('--');
+  const [diabetesStatus, setDiabetesStatus] = useState('--');
+  const [riskLevel, setRiskLevel] = useState('--');
+  const [recommendation, setRecommendation] = useState('--');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const ctx = canvasRef.current && canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    chartRef.current = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: 'IR Signal',
-            data: [],
-            borderColor: '#ef4444',
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.3,
-          },
-        ],
-      },
-      options: {
-        animation: false,
-        scales: { x: { display: false }, y: { min: 0, max: 200000 } },
-        plugins: { legend: { display: false } },
-      },
-    });
-
-    return () => {
-      try {
-        chartRef.current?.destroy();
-      } catch (e) {}
-    };
-  }, []);
-
-  const updatePPG = (value) => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const data = chart.data.datasets[0].data;
-    data.push(value);
-    if (data.length > 150) data.shift();
-    chart.data.labels.push('');
-    if (chart.data.labels.length > 150) chart.data.labels.shift();
-    chart.update('none');
+  const getRiskColor = (risk) => {
+    switch (risk) {
+      case 'Low':
+        return 'text-blue-500';
+      case 'Normal':
+        return 'text-green-500';
+      case 'Elevated':
+        return 'text-yellow-500';
+      case 'High':
+        return 'text-orange-500';
+      case 'Critical':
+        return 'text-red-500';
+      default:
+        return 'text-gray-400';
+    }
   };
 
-  const parseMetrics = (text) => {
-    const spo2Match = text.match(/SpO2:(\d+)%/);
-    const hrMatch = text.match(/Heart Rate:(\d+)/);
-    const bpMatch = text.match(/BP:(\d+)\/(\d+)/);
-    if (spo2Match) setSpo2(`${spo2Match[1]}`);
-    if (hrMatch) setHr(`${hrMatch[1]}`);
-    if (bpMatch) setBp(`${bpMatch[1]}/${bpMatch[2]}`);
-  };
-
-  const handleNotification = (event) => {
-    const text = new TextDecoder().decode(event.target.value);
-    if (text.startsWith('PPG:')) {
-      const val = parseInt(text.split(':')[1]);
-      if (!isNaN(val)) updatePPG(val);
-    } else {
-      parseMetrics(text);
+  const getRiskBgColor = (risk) => {
+    switch (risk) {
+      case 'Low':
+        return 'bg-blue-50 border-blue-200';
+      case 'Normal':
+        return 'bg-green-50 border-green-200';
+      case 'Elevated':
+        return 'bg-yellow-50 border-yellow-200';
+      case 'High':
+        return 'bg-orange-50 border-orange-200';
+      case 'Critical':
+        return 'bg-red-50 border-red-200';
+      default:
+        return 'bg-gray-50 border-gray-200';
     }
   };
 
@@ -90,11 +63,10 @@ export default function MonitorPage() {
       const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
       const char = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
       await char.startNotifications();
-      char.addEventListener('characteristicvaluechanged', handleNotification);
+      char.addEventListener('characteristicvaluechanged', handleData);
       setCharacteristic(char);
       setConnected(true);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Connection failed:', err);
       alert('Connection failed: ' + err);
     } finally {
@@ -109,93 +81,163 @@ export default function MonitorPage() {
       // ignore
     }
     if (characteristic) {
-      try { characteristic.removeEventListener('characteristicvaluechanged', handleNotification); } catch (e) {}
+      try {
+        characteristic.removeEventListener('characteristicvaluechanged', handleData);
+      } catch (e) {}
       setCharacteristic(null);
     }
     setDevice(null);
     setConnected(false);
+    resetValues();
+  };
+
+  const handleData = async (event) => {
+    const data = new TextDecoder().decode(event.target.value);
+    const hrMatch = data.match(/Heart Rate:(\d+)/);
+    const spo2Match = data.match(/SpO2:(\d+)%/);
+    const gsrMatch = data.match(/GSR:([\d.]+)/);
+
+    const parsedHr = hrMatch ? parseFloat(hrMatch[1]) : null;
+    const parsedSpo2 = spo2Match ? parseFloat(spo2Match[1]) : null;
+    const parsedGsr = gsrMatch ? parseFloat(gsrMatch[1]) : null;
+
+    if (parsedHr) setHr(parsedHr + ' bpm');
+    if (parsedSpo2) setSpo2(parsedSpo2 + '%');
+    if (parsedGsr) setGsr(parsedGsr.toFixed(2) + ' V');
+
+    if (parsedHr && parsedSpo2 && parsedGsr && !isNaN(parsedHr) && !isNaN(parsedSpo2) && !isNaN(parsedGsr)) {
+      await fetchPrediction(parsedHr, parsedSpo2, parsedGsr);
+    }
+  };
+
+  const fetchPrediction = async (heartRate, spO2, gsrValue) => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/predictions/glucose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          HeartRate: heartRate,
+          SpO2: spO2,
+          GSR: gsrValue,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+
+      const result = await res.json();
+      
+      if (result.glucose_prediction !== undefined) {
+        setGlucose(Math.round(result.glucose_prediction) + ' mg/dL');
+      }
+      if (result.diabetes_status) {
+        setDiabetesStatus(result.diabetes_status);
+      }
+      if (result.risk_level) {
+        setRiskLevel(result.risk_level);
+      }
+      if (result.recommendation) {
+        setRecommendation(result.recommendation);
+      }
+    } catch (err) {
+      console.error('Prediction fetch failed:', err);
+      setGlucose('Error');
+      setDiabetesStatus('Error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetValues = () => {
     setSpo2('--');
     setHr('--');
-    setBp('--/--');
-    if (chartRef.current) {
-      chartRef.current.data.datasets[0].data = [];
-      chartRef.current.data.labels = [];
-      chartRef.current.update();
-    }
+    setGsr('--');
+    setGlucose('--');
+    setDiabetesStatus('--');
+    setRiskLevel('--');
+    setRecommendation('--');
   };
 
   return (
     <Layout>
-      <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Health Monitor</h1>
-                <p className="text-sm text-gray-500">ESP32 Vital Signs</p>
-              </div>
+          {/* Header */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">AI Health Monitor</h1>
+              <p className="text-sm text-gray-500">ESP32 + AI Glucose & Diabetes Detection</p>
             </div>
-
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-2 text-green-600 text-sm ${connected ? '' : 'hidden'}`}>
+              <div className={`items-center gap-2 text-green-600 text-sm ${connected ? 'flex' : 'hidden'}`}>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 Connected
               </div>
-
               <button
                 onClick={connectToDevice}
                 disabled={connecting || connected}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white transition-colors ${connecting || connected ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                <span>{connected ? 'Connected' : connecting ? 'Connecting...' : 'Connect Device'}</span>
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {connected ? 'Connected' : connecting ? 'Connecting...' : 'Connect'}
               </button>
-
               <button
                 onClick={disconnect}
-                className={`px-6 py-3 rounded-lg text-white ${connected ? 'bg-red-500 hover:bg-red-600' : 'hidden'}`}>
+                className={`px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors ${connected ? '' : 'hidden'}`}
+              >
                 Disconnect
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-sm font-medium text-gray-600 mb-1">SpO₂</h3>
-            <div id="spo2Value" className="text-4xl font-bold text-gray-400">{spo2}<span className="text-2xl">%</span></div>
+          {/* Vital Signs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h3 className="text-sm font-medium text-gray-600 mb-1">SpO₂</h3>
+              <div className="text-4xl font-bold text-gray-400">{spo2}</div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Heart Rate</h3>
+              <div className="text-4xl font-bold text-gray-400">{hr}</div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h3 className="text-sm font-medium text-gray-600 mb-1">GSR</h3>
+              <div className="text-4xl font-bold text-gray-400">{gsr}</div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Predicted Glucose</h3>
+              <div className="text-3xl font-bold text-gray-400">{glucose}</div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-sm font-medium text-gray-600 mb-1">Heart Rate</h3>
-            <div id="hrValue" className="text-4xl font-bold text-gray-400">{hr}<span className="text-2xl"> bpm</span></div>
+          {/* AI Predictions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+              <h3 className="text-sm font-medium text-gray-600 mb-1">AI Diabetes Status</h3>
+              <div className="text-3xl font-bold text-gray-400">{diabetesStatus}</div>
+            </div>
+            <div className={`rounded-2xl shadow-lg p-6 text-center border-2 ${getRiskBgColor(riskLevel)}`}>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Risk Level</h3>
+              <div className={`text-3xl font-bold ${getRiskColor(riskLevel)}`}>{riskLevel}</div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 md:col-span-2">
-            <h3 className="text-sm font-medium text-gray-600 mb-1">Blood Pressure (Estimated)</h3>
-            <div id="bpValue" className="text-4xl font-bold text-gray-400">{bp}<span className="text-2xl"> mmHg</span></div>
+          {/* Recommendation */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h3 className="text-sm font-medium text-gray-600 mb-2">AI Recommendation</h3>
+            <p className="text-gray-700">{recommendation}</p>
           </div>
-        </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-600">PPG Waveform</h3>
-            <button onClick={() => {
-              // retake action: clear chart and reset values
-              if (chartRef.current) {
-                chartRef.current.data.datasets[0].data = [];
-                chartRef.current.data.labels = [];
-                chartRef.current.update();
-              }
-              setSpo2('--'); setHr('--'); setBp('--/--');
-            }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              Retake
+          {/* Retake Button */}
+          <div className="text-center">
+            <button
+              onClick={resetValues}
+              disabled={!connected}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              Retake Measurement
             </button>
-          </div>
-          <canvas ref={canvasRef} className="w-full h-48" />
           </div>
         </div>
       </div>

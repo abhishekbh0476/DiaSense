@@ -258,59 +258,161 @@ export default function Analytics() {
               </div>
 
               {/* Real Data Chart */}
-              <div className="h-80 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-6 flex items-end justify-between">
-                {glucoseData.readings.slice(0, 12).reverse().map((reading, index) => (
-                  <div key={reading._id || index} className="flex flex-col items-center group">
-                    <div
-                      className={`w-4 rounded-t-lg transition-all duration-500 group-hover:scale-110 ${
-                        reading.status === 'high'
-                          ? 'bg-gradient-to-t from-orange-400 to-orange-600'
-                          : reading.status === 'low'
-                          ? 'bg-gradient-to-t from-red-400 to-red-600'
-                          : 'bg-gradient-to-t from-blue-400 to-blue-600'
-                      }`}
-                      style={{ height: `${Math.max((reading.value / 200) * 100, 5)}%` }}
-                    />
-                    <div className="mt-2 text-xs text-slate-600 font-medium">
-                      {new Date(reading.timestamp).toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit',
-                        hour12: false 
+              {selectedMetric === 'glucose' ? (
+                <>
+                  <div className="h-80 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-6 relative">
+                    {glucoseData.readings.length > 0 ? (
+                      <svg className="w-full h-full" viewBox="0 0 800 300" preserveAspectRatio="none">
+                        {/* Grid lines */}
+                        <defs>
+                          <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
+                          </linearGradient>
+                        </defs>
+                        
+                        {/* Y-axis grid lines and labels */}
+                        {[0, 50, 100, 150, 200, 250].map((gridVal) => (
+                          <g key={`grid-${gridVal}`}>
+                            <line x1="0" y1={300 - (gridVal / 250) * 300} x2="800" y2={300 - (gridVal / 250) * 300} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="5,5" />
+                            <text x="-5" y={305 - (gridVal / 250) * 300} textAnchor="end" fontSize="10" fill="#94a3b8">{gridVal}</text>
+                          </g>
+                        ))}
+                        
+                        {/* Reference zones */}
+                        <rect x="0" y={300 - (140 / 250) * 300} width="800" height={(70 / 250) * 300} fill="#10b981" fillOpacity="0.05" />
+                        <text x="5" y={300 - (105 / 250) * 300} fontSize="11" fill="#059669" fontWeight="500">Normal Range</text>
+                        
+                        {/* Line and area chart */}
+                        {(() => {
+                          const readings = glucoseData.readings.slice(0, 24).reverse();
+                          if (readings.length === 0) return null;
+                          
+                          const minVal = Math.min(...readings.map(r => Number(r?.value) || 0));
+                          const maxVal = Math.max(...readings.map(r => Number(r?.value) || 0));
+                          const range = Math.max(maxVal - minVal, 50);
+                          const normalized = readings.map((r, i) => {
+                            const val = Number(r?.value) || 0;
+                            const x = (i / (readings.length - 1)) * 800;
+                            const y = 300 - ((val - (minVal - 10)) / (range + 20)) * 300;
+                            return { x, y, val, status: r?.status, timestamp: r?.timestamp };
+                          });
+                          
+                          const pathD = normalized.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                          const areaPathD = pathD + ` L 800 300 L 0 300 Z`;
+                          
+                          return (
+                            <>
+                              {/* Area fill */}
+                              <path d={areaPathD} fill="url(#areaGradient)" />
+                              
+                              {/* Line */}
+                              <path d={pathD} stroke="#3b82f6" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                              
+                              {/* Data points */}
+                              {normalized.map((p, i) => (
+                                <g key={`point-${i}`} className="group cursor-pointer">
+                                  <circle cx={p.x} cy={p.y} r="4" fill={p.status === 'high' ? '#f97316' : p.status === 'low' ? '#ef4444' : '#3b82f6'} opacity="0.7" />
+                                  <circle cx={p.x} cy={p.y} r="6" fill="none" stroke={p.status === 'high' ? '#f97316' : p.status === 'low' ? '#ef4444' : '#3b82f6'} strokeWidth="2" opacity="0" className="group-hover:opacity-100 transition-opacity" />
+                                  {/* Tooltip */}
+                                  <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    <rect x={p.x - 35} y={p.y - 30} width="70" height="25" fill="#1e293b" rx="4" />
+                                    <text x={p.x} y={p.y - 12} textAnchor="middle" fontSize="12" fill="white" fontWeight="bold">{p.val} mg/dL</text>
+                                    <text x={p.x} y={p.y + 1} textAnchor="middle" fontSize="9" fill="#cbd5e1">{new Date(p.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</text>
+                                  </g>
+                                </g>
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </svg>
+                    ) : (
+                      <div className="flex items-center justify-center w-full h-full text-slate-500">
+                        <div className="text-center">
+                          <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          <p>No glucose readings available</p>
+                          <p className="text-sm">Start logging readings to see your trends</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chart Legend */}
+                  <div className="flex justify-center space-x-6 mt-4">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-slate-600">Normal (70-140)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-slate-600">High ({'>'}140)</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-slate-600">Low ({'<'}70)</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="h-80 bg-gradient-to-br from-slate-50 to-emerald-50 rounded-xl p-6 flex flex-col items-center justify-start overflow-y-auto">
+                  {medications.length === 0 ? (
+                    <div className="flex items-center justify-center w-full h-full text-slate-500">
+                      <div className="text-center">
+                        <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.1 0-2 .9-2 2v6a2 2 0 002 2h4a2 2 0 002-2v-6c0-1.1-.9-2-2-2h-4z" />
+                        </svg>
+                        <p>No medications found</p>
+                        <p className="text-sm">Add medications to view adherence trends</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full space-y-3">
+                      {medications.map((med, idx) => {
+                        const medName = med?.name || med?.title || 'Unknown Medication';
+                        const doseValue = med?.dose?.amount || med?.dosage?.amount || med?.dose || med?.dosage || '—';
+                        const doseUnit = med?.dose?.unit || med?.dosage?.unit || '';
+                        const doseDisplay = typeof doseValue === 'object' ? '—' : `${doseValue}${doseUnit ? ` ${doseUnit}` : ''}`;
+                        
+                        // Handle frequency as object or string
+                        let frequencyDisplay = '—';
+                        if (med?.frequency) {
+                          if (typeof med.frequency === 'object') {
+                            frequencyDisplay = med.frequency.timesPerDay ? `${med.frequency.timesPerDay}x/day` : med.frequency.times || '—';
+                          } else if (typeof med.frequency === 'string') {
+                            frequencyDisplay = med.frequency;
+                          }
+                        }
+                        
+                        const adherence = med?.adherence || 0;
+                        
+                        return (
+                          <div key={med._id || idx} className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <div className="text-sm font-semibold text-slate-800">{medName}</div>
+                                <div className="text-xs text-slate-500 mt-1">Dose: {doseDisplay}</div>
+                                <div className="text-xs text-slate-500">Frequency: {frequencyDisplay}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-emerald-600">{adherence}%</div>
+                                <div className="text-xs text-slate-500">Adherence</div>
+                              </div>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2">
+                              <div 
+                                className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-2 rounded-full transition-all duration-500" 
+                                style={{ width: `${Math.min(adherence, 100)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
                       })}
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute -mt-8 bg-slate-900 text-white px-2 py-1 rounded text-xs">
-                      {reading.value} mg/dL
-                    </div>
-                  </div>
-                ))}
-                {glucoseData.readings.length === 0 && (
-                  <div className="flex items-center justify-center w-full h-full text-slate-500">
-                    <div className="text-center">
-                      <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      <p>No glucose readings available</p>
-                      <p className="text-sm">Start logging readings to see your trends</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Chart Legend */}
-              <div className="flex justify-center space-x-6 mt-4">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full mr-2"></div>
-                  <span className="text-sm text-slate-600">Normal (70-140)</span>
+                  )}
                 </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full mr-2"></div>
-                  <span className="text-sm text-slate-600">High ({'>'}140)</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-red-600 rounded-full mr-2"></div>
-                  <span className="text-sm text-slate-600">Low ({'<'}70)</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 

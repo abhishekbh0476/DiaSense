@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
+import { createReportPayload } from '../../lib/pdfGenerator';
 
 export default function Reports() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -13,6 +14,9 @@ export default function Reports() {
   const [reportType, setReportType] = useState('comprehensive');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedReports, setGeneratedReports] = useState([]);
+  const [error, setError] = useState(null);
+  const [glucoseData, setGlucoseData] = useState(null);
+  const [medicationData, setMedicationData] = useState(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -22,68 +26,118 @@ export default function Reports() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      loadReportData();
       loadReportHistory();
     }
   }, [isAuthenticated]);
 
-  const loadReportHistory = () => {
-    // Mock report history
-    setGeneratedReports([
-      {
-        id: 1,
-        title: 'Weekly Comprehensive Report',
-        period: 'Dec 18-24, 2024',
-        type: 'comprehensive',
-        generatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        size: '2.4 MB',
-        pages: 12,
-        sharedWith: ['Dr. Emily Chen', 'Sarah Johnson']
-      },
-      {
-        id: 2,
-        title: 'Monthly Glucose Summary',
-        period: 'November 2024',
-        type: 'glucose',
-        generatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        size: '1.8 MB',
-        pages: 8,
-        sharedWith: ['Dr. Emily Chen']
-      },
-      {
-        id: 3,
-        title: 'Medication Adherence Report',
-        period: 'Q4 2024',
-        type: 'medication',
-        generatedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-        size: '1.2 MB',
-        pages: 5,
-        sharedWith: ['Dr. Robert Martinez']
+  const loadReportData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Fetch glucose data
+      const glucoseRes = await fetch('/api/glucose', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (glucoseRes.ok) {
+        const data = await glucoseRes.json();
+        setGlucoseData(data);
       }
-    ]);
+      
+      // Fetch medication data
+      const medRes = await fetch('/api/medications', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (medRes.ok) {
+        const data = await medRes.json();
+        setMedicationData(data.medications || []);
+      }
+    } catch (err) {
+      console.error('Error loading report data:', err);
+    }
+  };
+
+  const loadReportHistory = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/reports', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedReports(data.reports || []);
+      }
+    } catch (err) {
+      console.error('Error loading report history:', err);
+      // Fall back to mock data if API fails
+      setGeneratedReports([]);
+    }
   };
 
   const generateReport = async () => {
     setIsGenerating(true);
+    setError(null);
     
-    // Simulate report generation
-    setTimeout(() => {
+    try {
+      const token = localStorage.getItem('token');
+      const reportPayload = createReportPayload(
+        reportType,
+        glucoseData,
+        medicationData,
+        getPeriodLabel(),
+        user
+      );
+      
+      // Generate and download PDF
+      const response = await fetch('/api/reports/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(reportPayload)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate PDF');
+      }
+      
+      // Trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${reportPayload.fileName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      // Add to report history
       const newReport = {
         id: Date.now(),
         title: getReportTitle(),
         period: getPeriodLabel(),
         type: reportType,
         generatedAt: new Date(),
-        size: '2.1 MB',
-        pages: Math.floor(Math.random() * 10) + 5,
+        size: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
+        pages: Math.ceil(blob.size / 5000), // Estimate
         sharedWith: []
       };
       
       setGeneratedReports(prev => [newReport, ...prev]);
-      setIsGenerating(false);
       
-      // In real app, this would trigger actual PDF generation and download
-      alert(`${newReport.title} generated successfully!\n\nThe report has been saved and is ready to share with your healthcare providers.`);
-    }, 3000);
+      // Show success message
+      alert(`${newReport.title} generated and downloaded successfully!`);
+    } catch (err) {
+      console.error('Error generating report:', err);
+      setError(err.message || 'Failed to generate report');
+      alert(`Error: ${err.message || 'Failed to generate report'}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const getReportTitle = () => {
@@ -115,13 +169,56 @@ export default function Reports() {
   };
 
   const shareReport = (reportId) => {
-    // In real app, this would open a sharing dialog
-    alert('Share report with healthcare providers or family members');
+    alert('Report sharing feature coming soon! You can download and share the PDF directly.');
   };
 
-  const downloadReport = (reportId) => {
-    // In real app, this would trigger PDF download
-    alert('Report downloaded successfully!');
+  const downloadReport = async (reportId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const report = generatedReports.find(r => r.id === reportId);
+      
+      if (!report) {
+        alert('Report not found');
+        return;
+      }
+      
+      // Create report payload for download
+      const reportPayload = createReportPayload(
+        report.type,
+        glucoseData,
+        medicationData,
+        report.period,
+        user
+      );
+      
+      // Generate PDF
+      const response = await fetch('/api/reports/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(reportPayload)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to download report');
+      }
+      
+      // Trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${report.title}-${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      alert('Failed to download report');
+    }
   };
 
   if (isLoading) {
@@ -261,7 +358,7 @@ export default function Reports() {
               <div className="space-y-4">
                 {generatedReports.map((report, index) => (
                   <div
-                    key={report.id}
+                    key={`${report.id || index}-${report.generatedAt}`}
                     className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] animate-slide-up"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
@@ -277,14 +374,14 @@ export default function Reports() {
                         {/* Report Details */}
                         <div className="flex-1">
                           <h3 className="font-semibold text-slate-900 mb-1">{report.title}</h3>
-                          <p className="text-slate-600 text-sm mb-2">{report.period}</p>
+                          <p className="text-slate-600 text-sm mb-2">{typeof report.period === 'object' ? report.period.label : report.period}</p>
                           
                           <div className="flex items-center space-x-4 text-xs text-slate-500 mb-3">
                             <span>{report.size}</span>
                             <span>•</span>
                             <span>{report.pages} pages</span>
                             <span>•</span>
-                            <span>Generated {report.generatedAt.toLocaleDateString()}</span>
+                            <span>Generated {new Date(report.generatedAt).toLocaleDateString()}</span>
                           </div>
                           
                           {/* Shared With */}
