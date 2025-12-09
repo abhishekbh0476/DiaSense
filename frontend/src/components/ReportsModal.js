@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../lib/formatDate';
 import { useApiClient } from '../hooks/useApiClient';
 
 export default function ReportsModal({ onClose }) {
@@ -125,7 +126,7 @@ export default function ReportsModal({ onClose }) {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">{selectedReport.title}</h2>
                 <p className="text-gray-600">
-                  Generated on {selectedReport.generatedAt ? new Date(selectedReport.generatedAt).toLocaleDateString() : 'Unknown date'}
+                  Generated on {selectedReport.generatedAt ? formatDate(selectedReport.generatedAt) : 'Unknown date'}
                 </p>
               </div>
               <button
@@ -352,7 +353,7 @@ export default function ReportsModal({ onClose }) {
                       <div>
                         <h4 className="font-medium text-gray-900">{report.title}</h4>
                         <p className="text-sm text-gray-600">
-                          Generated {report.generatedAt ? new Date(report.generatedAt).toLocaleDateString() : 'Unknown date'}
+                          Generated {report.generatedAt ? formatDate(report.generatedAt) : 'Unknown date'}
                         </p>
                       </div>
                     </div>

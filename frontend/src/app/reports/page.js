@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import Layout from '../../components/Layout';
 import { createReportPayload } from '../../lib/pdfGenerator';
+import { formatDate } from '../../lib/formatDate';
 
 export default function Reports() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -155,9 +156,9 @@ export default function Reports() {
     switch (selectedPeriod) {
       case 'week':
         const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return `${weekStart.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+        return `${formatDate(weekStart)} - ${formatDate(now)}`;
       case 'month':
-        return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        return formatDate(now, { month: 'long', year: 'numeric' });
       case 'quarter':
         const quarter = Math.floor(now.getMonth() / 3) + 1;
         return `Q${quarter} ${now.getFullYear()}`;
@@ -381,7 +382,7 @@ export default function Reports() {
                             <span>•</span>
                             <span>{report.pages} pages</span>
                             <span>•</span>
-                            <span>Generated {new Date(report.generatedAt).toLocaleDateString()}</span>
+                            <span>Generated {formatDate(report.generatedAt)}</span>
                           </div>
                           
                           {/* Shared With */}

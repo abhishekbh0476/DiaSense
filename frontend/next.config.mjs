@@ -14,12 +14,8 @@ const nextConfig = {
     }
     return config;
   },
-  
-  // Experimental features
-  experimental: {
-    // Suppress hydration warnings
-    suppressHydrationWarning: true,
-  },
+  // Turbopack config (empty - silences Turbopack/webpack conflict in Next 16+)
+  turbopack: {},
 };
 
 export default nextConfig;
