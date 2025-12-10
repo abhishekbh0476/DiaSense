@@ -79,6 +79,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    const body = await request.json();
+    console.log('[api/glucose] POST request body:', body);
+
     const { 
       value, 
       mealContext, 
@@ -88,26 +91,37 @@ export async function POST(request) {
       exerciseRecent = false,
       stressLevel,
       sleepQuality 
-    } = await request.json();
+    } = body;
     
     if (!value || value < 20 || value > 600) {
+      console.error('[api/glucose] Invalid glucose value:', value);
       return NextResponse.json({ error: 'Invalid glucose value' }, { status: 400 });
     }
 
-    const reading = new GlucoseReading({
+    const readingData = {
       userId: decoded.userId,
       value,
-      mealContext,
-      notes,
-      symptoms,
-      medicationTaken,
-      exerciseRecent,
-      stressLevel,
-      sleepQuality,
+      mealContext: mealContext || 'random',
+      notes: notes || '',
+      symptoms: symptoms || [],
+      medicationTaken: medicationTaken || false,
+      exerciseRecent: exerciseRecent || false,
       timestamp: new Date()
-    });
+    };
 
+    // Only add optional numeric fields if they're provided and valid
+    if (stressLevel && stressLevel >= 1 && stressLevel <= 10) {
+      readingData.stressLevel = stressLevel;
+    }
+    if (sleepQuality && sleepQuality >= 1 && sleepQuality <= 10) {
+      readingData.sleepQuality = sleepQuality;
+    }
+
+    console.log('[api/glucose] Creating reading with data:', readingData);
+    const reading = new GlucoseReading(readingData);
     await reading.save();
+
+    console.log('[api/glucose] Reading saved successfully:', reading._id);
 
     // Check for alerts
     let alertType = null;
@@ -149,7 +163,23 @@ export async function POST(request) {
       alert: alertType ? { type: alertType, message: alertMessage } : null
     }, { status: 201 });
   } catch (error) {
-    console.error('Error saving glucose reading:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[api/glucose] Error saving glucose reading:', error);
+    console.error('[api/glucose] Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      errors: error.errors ? Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      })) : undefined
+    });
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message,
+      validationErrors: error.errors ? Object.entries(error.errors).reduce((acc, [key, val]) => {
+        acc[key] = val.message;
+        return acc;
+      }, {}) : undefined
+    }, { status: 500 });
   }
 }

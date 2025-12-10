@@ -76,9 +76,12 @@ export default function MonitorPage() {
 
   const disconnect = () => {
     try {
-      if (device?.gatt?.connected) device.gatt.disconnect();
+      if (device?.gatt?.connected) {
+        device.gatt.disconnect();
+        console.log('🔌 Device disconnected');
+      }
     } catch (e) {
-      // ignore
+      console.warn('Disconnect error:', e);
     }
     if (characteristic) {
       try {
@@ -91,47 +94,100 @@ export default function MonitorPage() {
     resetValues();
   };
 
+  // Listen for device disconnect events
+  useEffect(() => {
+    if (!device) return;
+
+    const handleDisconnect = () => {
+      console.log('📡 Device disconnected unexpectedly');
+      setConnected(false);
+      setDevice(null);
+      setCharacteristic(null);
+    };
+
+    device.addEventListener('gattserverdisconnected', handleDisconnect);
+
+    return () => {
+      try {
+        device.removeEventListener('gattserverdisconnected', handleDisconnect);
+      } catch (e) {}
+    };
+  }, [device]);
+
   const handleData = async (event) => {
     const data = new TextDecoder().decode(event.target.value);
-    const hrMatch = data.match(/Heart Rate:(\d+)/);
-    const spo2Match = data.match(/SpO2:(\d+)%/);
-    const gsrMatch = data.match(/GSR:([\d.]+)/);
+    console.log('📡 Raw BLE data received:', JSON.stringify(data));
+    console.log('📡 Data length:', data.length);
+    console.log('📡 Data bytes:', [...new Uint8Array(event.target.value)].map(b => b.toString(16)).join(' '));
+    
+    const hrMatch = data.match(/Heart Rate:(\d+)/i);
+    const spo2Match = data.match(/SpO2:(\d+)%?/i);
+    const gsrMatch = data.match(/GSR:([\d.]+)/i);
 
     const parsedHr = hrMatch ? parseFloat(hrMatch[1]) : null;
     const parsedSpo2 = spo2Match ? parseFloat(spo2Match[1]) : null;
     const parsedGsr = gsrMatch ? parseFloat(gsrMatch[1]) : null;
 
-    if (parsedHr) setHr(parsedHr + ' bpm');
-    if (parsedSpo2) setSpo2(parsedSpo2 + '%');
-    if (parsedGsr) setGsr(parsedGsr.toFixed(2) + ' V');
+    console.log('📊 Parsed values:', { parsedHr, parsedSpo2, parsedGsr });
 
-    if (parsedHr && parsedSpo2 && parsedGsr && !isNaN(parsedHr) && !isNaN(parsedSpo2) && !isNaN(parsedGsr)) {
+    if (parsedHr) {
+      setHr(parsedHr + ' bpm');
+      console.log('✅ HR set:', parsedHr);
+    }
+    if (parsedSpo2) {
+      setSpo2(parsedSpo2 + '%');
+      console.log('✅ SpO2 set:', parsedSpo2);
+    }
+    if (parsedGsr !== null && parsedGsr !== undefined) {
+      setGsr(parsedGsr.toFixed(2) + ' V');
+      console.log('✅ GSR set:', parsedGsr);
+    } else {
+      console.warn('⚠️ GSR not found in data:', data);
+    }
+
+    if (parsedHr && parsedSpo2 && parsedGsr !== null && !isNaN(parsedHr) && !isNaN(parsedSpo2) && !isNaN(parsedGsr)) {
+      console.log('🚀 All values present, fetching prediction...');
       await fetchPrediction(parsedHr, parsedSpo2, parsedGsr);
+    } else {
+      console.log('⏳ Waiting for all values:', { hr: !!parsedHr, spo2: !!parsedSpo2, gsr: parsedGsr !== null && !isNaN(parsedGsr) });
     }
   };
 
   const fetchPrediction = async (heartRate, spO2, gsrValue) => {
     try {
       setLoading(true);
+      console.log('📤 Sending prediction request:', { heart_rate: heartRate, spo2: spO2, gsr: gsrValue });
+      
       const res = await fetch('/api/predictions/glucose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          HeartRate: heartRate,
-          SpO2: spO2,
-          GSR: gsrValue,
+          heart_rate: heartRate,
+          spo2: spO2,
+          gsr: gsrValue,
         }),
       });
 
+      console.log('📥 API response status:', res.status);
+      const result = await res.json();
+      console.log('📥 API response body:', result);
+
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        console.error('❌ API error response:', result);
+        throw new Error(`API error: ${res.status} - ${result.error || 'Unknown error'}`);
       }
 
-      const result = await res.json();
-      
       if (result.glucose_prediction !== undefined) {
-        setGlucose(Math.round(result.glucose_prediction) + ' mg/dL');
+        const glucoseValue = Math.round(result.glucose_prediction);
+        setGlucose(glucoseValue + ' mg/dL');
+        
+        // Save glucose prediction to database (non-blocking)
+        console.log('💾 Saving predicted glucose to database:', glucoseValue);
+        saveGlucoseReading(glucoseValue, result).catch(err => {
+          console.error('⚠️ Glucose save failed (non-blocking):', err.message);
+        });
       }
+      
       if (result.diabetes_status) {
         setDiabetesStatus(result.diabetes_status);
       }
@@ -142,11 +198,60 @@ export default function MonitorPage() {
         setRecommendation(result.recommendation);
       }
     } catch (err) {
-      console.error('Prediction fetch failed:', err);
+      console.error('❌ Prediction fetch failed:', err.message);
       setGlucose('Error');
       setDiabetesStatus('Error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveGlucoseReading = async (glucoseValue, predictionData) => {
+    try {
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('⚠️ No authentication token found. Glucose reading not saved to database.');
+        return;
+      }
+
+      const payload = {
+        value: glucoseValue,
+        mealContext: 'random',
+        notes: `AI Predicted - HR: ${predictionData.input?.heart_rate || 'N/A'}, SpO2: ${predictionData.input?.spo2 || 'N/A'}, GSR: ${predictionData.input?.gsr || 'N/A'}`,
+        symptoms: [],
+        medicationTaken: false,
+        exerciseRecent: false,
+        stressLevel: 5,
+        sleepQuality: 7
+      };
+
+      console.log('📤 Sending glucose reading payload:', payload);
+
+      const response = await fetch('/api/glucose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const responseData = await response.json();
+      console.log('📥 API response status:', response.status);
+      console.log('📥 API response body:', responseData);
+
+      if (!response.ok) {
+        console.error('❌ Failed to save glucose reading. Status:', response.status);
+        console.error('❌ Error details:', responseData);
+        throw new Error(responseData.details || 'Failed to save glucose reading');
+      }
+
+      console.log('✅ Glucose reading saved to database:', responseData.reading);
+      return responseData.reading;
+    } catch (err) {
+      console.error('❌ Error saving glucose reading to database:', err.message);
+      throw err;
     }
   };
 

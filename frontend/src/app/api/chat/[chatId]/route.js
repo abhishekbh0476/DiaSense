@@ -7,8 +7,11 @@ import mongoose from 'mongoose';
 // GET specific chat with messages
 async function getChat(request, context) {
   try {
-    const { params } = context || {};
-    const { chatId } = params;
+  let params = context?.params;
+  if (params && typeof params.then === 'function') {
+    params = await params;
+  }
+  const { chatId } = params || {};
 
     // Validate chat ID
     if (!mongoose.Types.ObjectId.isValid(chatId)) {
@@ -60,10 +63,13 @@ async function sendMessage(request, context) {
     console.log('Context:', context);
     console.log('User ID:', request.userId);
     
-    const { params } = context || {};
-    console.log('Params:', params);
+  let params = context?.params;
+  if (params && typeof params.then === 'function') {
+    params = await params;
+  }
+  console.log('Params:', params);
     
-    if (!params || !params.chatId) {
+  if (!params?.chatId) {
       console.log('❌ No chatId in params');
       return NextResponse.json({
         success: false,
@@ -219,8 +225,11 @@ async function sendMessage(request, context) {
 // PUT update chat (e.g., change title)
 async function updateChat(request, context) {
   try {
-    const { params } = context || {};
-    const { chatId } = params;
+    let params = context?.params;
+    if (params && typeof params.then === 'function') {
+      params = await params;
+    }
+    const { chatId } = params || {};
     const body = await request.json();
     const { title } = body;
 
@@ -272,8 +281,11 @@ async function updateChat(request, context) {
 // DELETE chat (soft delete)
 async function deleteChat(request, context) {
   try {
-    const { params } = context || {};
-    const { chatId } = params;
+    let params = context?.params;
+    if (params && typeof params.then === 'function') {
+      params = await params;
+    }
+    const { chatId } = params || {};
 
     // Validate chat ID
     if (!mongoose.Types.ObjectId.isValid(chatId)) {

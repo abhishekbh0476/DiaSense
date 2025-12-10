@@ -104,27 +104,41 @@ def predict_glucose():
             logger.warning(f"Invalid input types: {str(e)}")
             return jsonify({
                 'error': 'Invalid input values. Expected numbers.',
+                'received': data,
                 'status': 'error'
             }), 400
         
-        # Validate ranges
-        if not (40 <= heart_rate <= 200):
+        logger.info(f"📊 Received values - HR: {heart_rate}, SpO2: {spo2}, GSR: {gsr}")
+        
+        # Validate ranges (very relaxed for real-world device data and calibration issues)
+        # Heart rate: 20-200 BPM (allows for extreme cases)
+        if not (20 <= heart_rate <= 200):
+            logger.error(f"HR out of range: {heart_rate}")
             return jsonify({
-                'error': 'Heart rate must be between 40-200 BPM',
+                'error': f'Heart rate {heart_rate} out of range (20-200 BPM)',
+                'received': {'heart_rate': heart_rate},
                 'status': 'error'
             }), 400
         
-        if not (70 <= spo2 <= 100):
+        # SpO2: 0-100% (very relaxed since device might send uncalibrated values)
+        if not (0 <= spo2 <= 100):
+            logger.error(f"SpO2 out of range: {spo2}")
             return jsonify({
-                'error': 'SpO2 must be between 70-100%',
+                'error': f'SpO2 {spo2} out of range (0-100%)',
+                'received': {'spo2': spo2},
                 'status': 'error'
             }), 400
         
-        if not (0 <= gsr <= 10):
+        # GSR: 0-100 V
+        if not (0 <= gsr <= 100):
+            logger.error(f"GSR out of range: {gsr}")
             return jsonify({
-                'error': 'GSR must be between 0-10',
+                'error': f'GSR {gsr} out of range (0-100 V)',
+                'received': {'gsr': gsr},
                 'status': 'error'
             }), 400
+        
+        logger.info(f"✅ All values passed validation")
         
         # Get prediction
         logger.info("🤖 Making prediction...")
@@ -167,6 +181,7 @@ def predict_glucose():
         }
         
         logger.info(f"✅ Prediction successful: {glucose:.2f} mg/dL ({status})")
+        logger.info(f"📤 Response: {response}")
         return jsonify(response), 200
     
     except Exception as e:
