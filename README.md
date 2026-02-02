@@ -14,7 +14,6 @@
 
 The system integrates **ESP32-based sensing**, **Machine Learning models**, a **Flask backend**, and a **real-time web dashboard** to support early diabetes prediction and health monitoring while preserving user privacy.
 
-🌐 **Live Demo:** https://major-project-two-rho.vercel.app
 
 ---
 
